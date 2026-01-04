@@ -23,8 +23,6 @@ extern const char* mqttFanSpeedStateTopic;
 extern std::map<std::string, RfCode> commandsToCodes;
 extern RCSwitch mySwitchSend;
 
-extern void calibration();
-
 void handleWebRoot() {
   String html = "<!DOCTYPE html><html><head>";
   html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
@@ -83,12 +81,6 @@ void handleWebRoot() {
   html += "<div class='btn-group'>";
   html += "<button class='success' onclick=\"location.href='/sync/light/on'\">Light is ON</button>";
   html += "<button onclick=\"location.href='/sync/light/off'\">Light is OFF</button>";
-  html += "</div></div>";
-
-  html += "<div class='control-section'>";
-  html += "<h2>System</h2>";
-  html += "<div class='btn-group'>";
-  html += "<button class='danger' onclick=\"if(confirm('Run calibration?')) location.href='/calibrate'\">Run Calibration</button>";
   html += "</div></div>";
 
   html += "<div style='text-align: center; margin-top: 20px; font-size: 12px; color: #999;'>";
@@ -164,12 +156,6 @@ void setupWebServer() {
   webServer.on("/sync/light/off", []() {
     isLightOn = false;
     pubSubClient.publish(mqttLightStateTopic, "OFF");
-    webServer.sendHeader("Location", "/");
-    webServer.send(303);
-  });
-
-  webServer.on("/calibrate", []() {
-    calibration();
     webServer.sendHeader("Location", "/");
     webServer.send(303);
   });

@@ -74,7 +74,6 @@ The web interface provides:
 - Light and fan control buttons
 - Brightness adjustment
 - State synchronization controls
-- Manual calibration trigger
 
 ### Home Assistant Integration
 
@@ -96,17 +95,6 @@ The device automatically registers with Home Assistant via MQTT Discovery. You'l
 - `artika/light/brightness/state` - Brightness level
 - `artika/fan/state` - Fan state
 - `artika/fan/speed/state` - Fan speed
-
-## Calibration
-
-The calibration function sets the device to a known state:
-- Sets brightness to maximum (level 5)
-- Toggles light off then on
-- Turns fan off
-
-Calibration can be triggered via:
-- Web interface: Click "Run Calibration" button
-- Web endpoint: `http://artika-fan.local/calibrate`
 
 ## Project Structure
 

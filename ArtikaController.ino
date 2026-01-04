@@ -110,39 +110,6 @@ void setup() {
   Serial.println("----------------- STARTED -----------------");
 }
 
-void calibration() {
-  Serial.println("Starting calibration...");
-  ignoreReceivedCodes = true;
-
-  // Set brightness to max
-  brightnessLevel = 5;
-  for (int i = 0; i < 5; i++) {
-    mySwitchSend.send(commandsToCodes["brightness-up"].code, commandsToCodes["brightness-up"].length);
-    delay(500);
-  }
-  delay(500);
-
-  // Toggle light off then on (assuming it starts ON)
-  mySwitchSend.send(commandsToCodes["toggle-light"].code, commandsToCodes["toggle-light"].length);
-  isLightOn = false;
-  delay(1000);
-  mySwitchSend.send(commandsToCodes["toggle-light"].code, commandsToCodes["toggle-light"].length);
-  isLightOn = true;
-  delay(500);
-
-  // Turn fan off
-  mySwitchSend.send(commandsToCodes["fan-off"].code, commandsToCodes["fan-off"].length);
-  isFanOn = false;
-  currentFanSpeed = 0;
-  delay(500);
-
-  ignoreReceivedCodes = false;
-  Serial.println("Calibration completed.");
-
-  // Publish updated state after calibration
-  publishCurrentState();
-}
-
 void publishHomeAssistantDiscovery() {
   // Device information
   String device = "{\"identifiers\":[\"" + String(deviceId) + "\"],"
