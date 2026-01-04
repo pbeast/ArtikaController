@@ -63,7 +63,11 @@ const char* MQTT_PASSWORD = "mqtt_password";
 
 ## Usage
 
-**Important:** The controller assumes the light is **ON** with **maximum brightness (level 5)** when it starts. If your light is in a different state at startup, the controller's internal state will not match the physical device. See [Troubleshooting -> Light State Out of Sync](#light-state-out-of-sync) for how to resolve this.
+**Important Initial State Assumptions:**
+- The controller assumes the light is **ON** with **maximum brightness (level 5)** at startup
+- The controller assumes the fan is **OFF** at startup
+- If your devices are in a different state when the controller starts, use the web interface State Sync section to correct the internal state
+- See [Troubleshooting -> Light State Out of Sync](#light-state-out-of-sync) for details
 
 ### Web Interface
 
@@ -144,6 +148,10 @@ If the light state becomes out of sync with the physical device:
 - Ensure RF modules are properly connected
 - Check antenna connections
 - Verify RF codes match your specific Artika fan model
+
+### Fan Startup Behavior
+
+**Normal behavior:** When starting the fan from OFF to LOW or MEDIUM speed, the fan may briefly spin at high speed before settling to the requested speed. This is a hardware characteristic of the Artika fan motor and is not a controller issue. The fan does this to overcome inertia and ensure reliable startup.
 
 ## License
 

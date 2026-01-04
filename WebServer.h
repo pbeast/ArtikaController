@@ -151,9 +151,17 @@ void handleWebRoot() {
   html += "<div class='panel-body'>";
   html += "<div class='sync-warning'>";
   html += "<p>⚠ MANUAL OVERRIDE: USE IF STATE DESYNCHRONIZED</p>";
+  html += "<p style='margin-top:8px;'><strong>Light State:</strong></p>";
   html += "<div class='controls'>";
-  html += "<button class='primary' onclick=\"location.href='/sync/light/on'\">FORCE ON</button>";
-  html += "<button class='warning' onclick=\"location.href='/sync/light/off'\">FORCE OFF</button>";
+  html += "<button class='primary' onclick=\"location.href='/sync/light/on'\">Light ON</button>";
+  html += "<button class='warning' onclick=\"location.href='/sync/light/off'\">Light OFF</button>";
+  html += "</div>";
+  html += "<p style='margin-top:16px;'><strong>Fan State:</strong></p>";
+  html += "<div class='controls quad'>";
+  html += "<button class='warning' onclick=\"location.href='/sync/fan/off'\">Fan OFF</button>";
+  html += "<button class='primary' onclick=\"location.href='/sync/fan/low'\">Fan LOW</button>";
+  html += "<button class='primary' onclick=\"location.href='/sync/fan/medium'\">Fan MED</button>";
+  html += "<button class='primary' onclick=\"location.href='/sync/fan/high'\">Fan HIGH</button>";
   html += "</div></div></div></div>";
 
   html += "<div class='footer'>";
@@ -165,6 +173,20 @@ void handleWebRoot() {
 }
 
 void handleCommand(String command) {
+  static String lastCommand = "";
+  static unsigned long lastCommandTime = 0;
+  unsigned long currentTime = millis();
+
+  // Debounce: ignore duplicate commands within 500ms
+  if (command == lastCommand && (currentTime - lastCommandTime) < 500) {
+    Serial.println("Ignored duplicate web command (debounce)");
+    webServer.sendHeader("Location", "/");
+    webServer.send(303);
+    return;
+  }
+
+  lastCommand = command;
+  lastCommandTime = currentTime;
   skipNextReceive = true;
 
   if (commandsToCodes.find(command.c_str()) != commandsToCodes.end()) {
@@ -229,6 +251,42 @@ void setupWebServer() {
   webServer.on("/sync/light/off", []() {
     isLightOn = false;
     pubSubClient.publish(mqttLightStateTopic, "OFF");
+    webServer.sendHeader("Location", "/");
+    webServer.send(303);
+  });
+
+  webServer.on("/sync/fan/off", []() {
+    isFanOn = false;
+    currentFanSpeed = 0;
+    pubSubClient.publish(mqttFanStateTopic, "OFF");
+    pubSubClient.publish(mqttFanSpeedStateTopic, "0");
+    webServer.sendHeader("Location", "/");
+    webServer.send(303);
+  });
+
+  webServer.on("/sync/fan/low", []() {
+    isFanOn = true;
+    currentFanSpeed = 1;
+    pubSubClient.publish(mqttFanStateTopic, "ON");
+    pubSubClient.publish(mqttFanSpeedStateTopic, "1");
+    webServer.sendHeader("Location", "/");
+    webServer.send(303);
+  });
+
+  webServer.on("/sync/fan/medium", []() {
+    isFanOn = true;
+    currentFanSpeed = 2;
+    pubSubClient.publish(mqttFanStateTopic, "ON");
+    pubSubClient.publish(mqttFanSpeedStateTopic, "2");
+    webServer.sendHeader("Location", "/");
+    webServer.send(303);
+  });
+
+  webServer.on("/sync/fan/high", []() {
+    isFanOn = true;
+    currentFanSpeed = 3;
+    pubSubClient.publish(mqttFanStateTopic, "ON");
+    pubSubClient.publish(mqttFanSpeedStateTopic, "3");
     webServer.sendHeader("Location", "/");
     webServer.send(303);
   });

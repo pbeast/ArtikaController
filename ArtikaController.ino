@@ -86,7 +86,11 @@ void setup() {
   connectToWiFi();
 
   pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(BTN_PIN, INPUT_PULLUP); //INPUT_PULLUP
+  pinMode(BTN_PIN, INPUT_PULLUP);
+
+  // Initialize RF transmit pin LOW to prevent spurious signals during boot
+  pinMode(RC_SEND_PIN, OUTPUT);
+  digitalWrite(RC_SEND_PIN, LOW);
 
   digitalWrite(LED_BUILTIN, HIGH);
 
