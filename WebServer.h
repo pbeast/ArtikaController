@@ -25,68 +25,141 @@ extern RCSwitch mySwitchSend;
 
 void handleWebRoot() {
   String html = "<!DOCTYPE html><html><head>";
+  html += "<meta charset='UTF-8'>";
   html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
+  html += "<link href='https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Bebas+Neue&display=swap' rel='stylesheet'>";
   html += "<style>";
-  html += "body { font-family: Arial; margin: 20px; background: #f0f0f0; }";
-  html += ".container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }";
-  html += "h1 { color: #333; text-align: center; }";
-  html += ".status { background: #e3f2fd; padding: 15px; border-radius: 5px; margin: 20px 0; }";
-  html += ".status-item { margin: 8px 0; font-size: 16px; }";
-  html += ".control-section { margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 5px; }";
-  html += ".control-section h2 { margin-top: 0; color: #555; font-size: 18px; }";
-  html += "button { background: #2196F3; color: white; border: none; padding: 12px 24px; margin: 5px; border-radius: 5px; cursor: pointer; font-size: 14px; }";
-  html += "button:hover { background: #1976D2; }";
-  html += "button.danger { background: #f44336; }";
-  html += "button.danger:hover { background: #d32f2f; }";
-  html += "button.success { background: #4CAF50; }";
-  html += "button.success:hover { background: #45a049; }";
-  html += ".btn-group { display: flex; flex-wrap: wrap; gap: 5px; }";
+  html += "@keyframes blink{0%,50%{opacity:1}51%,100%{opacity:0}}";
+  html += "@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}";
+  html += "@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}";
+  html += "* { margin: 0; padding: 0; box-sizing: border-box; }";
+  html += "body { font-family: 'IBM Plex Mono', monospace; background: #0a0a0a; color: #fff; min-height: 100vh; padding: 20px; ";
+  html += "background-image: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,.03) 2px, rgba(255,255,255,.03) 4px); }";
+  html += ".container { max-width: 600px; margin: 0 auto; animation: slideUp 0.6s ease-out; }";
+  html += ".header { text-align: center; margin-bottom: 40px; border: 3px solid #fff; padding: 20px; background: #000; position: relative; }";
+  html += ".header:before { content: ''; position: absolute; top: -6px; left: -6px; right: -6px; bottom: -6px; border: 1px solid #333; pointer-events: none; }";
+  html += "h1 { font-family: 'Bebas Neue', sans-serif; font-size: 48px; letter-spacing: 8px; color: #fff; margin-bottom: 8px; text-transform: uppercase; }";
+  html += ".subtitle { font-size: 11px; letter-spacing: 3px; color: #666; text-transform: uppercase; }";
+  html += ".panel { background: #111; border: 3px solid #333; margin-bottom: 24px; position: relative; animation: slideUp 0.6s ease-out; animation-fill-mode: both; }";
+  html += ".panel:nth-child(2) { animation-delay: 0.1s; }";
+  html += ".panel:nth-child(3) { animation-delay: 0.2s; }";
+  html += ".panel:nth-child(4) { animation-delay: 0.3s; }";
+  html += ".panel:nth-child(5) { animation-delay: 0.4s; }";
+  html += ".panel-header { background: #1a1a1a; padding: 12px 20px; border-bottom: 2px solid #333; display: flex; justify-content: space-between; align-items: center; }";
+  html += ".panel-title { font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #999; }";
+  html += ".panel-body { padding: 24px; }";
+  html += ".status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }";
+  html += ".status-box { background: #000; border: 2px solid #222; padding: 20px; position: relative; }";
+  html += ".status-box:before { content: ''; position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; background: #333; }";
+  html += ".status-label { font-size: 10px; color: #666; letter-spacing: 2px; margin-bottom: 12px; text-transform: uppercase; }";
+  html += ".status-value { font-size: 32px; font-weight: 700; line-height: 1; }";
+  html += ".status-value.on { color: #00ff41; text-shadow: 0 0 10px rgba(0,255,65,0.5); animation: pulse 2s infinite; }";
+  html += ".status-value.off { color: #333; }";
+  html += ".brightness-bar { display: flex; gap: 4px; margin-top: 8px; }";
+  html += ".brightness-bar span { flex: 1; height: 8px; background: #222; border: 1px solid #333; }";
+  html += ".brightness-bar span.active { background: #00ff41; box-shadow: 0 0 8px rgba(0,255,65,0.6); }";
+  html += ".fan-visual { display: flex; gap: 8px; margin-top: 8px; justify-content: center; }";
+  html += ".fan-blade { width: 12px; height: 24px; background: #222; border: 1px solid #333; }";
+  html += ".fan-blade.active { background: #00b8ff; box-shadow: 0 0 8px rgba(0,184,255,0.6); }";
+  html += ".controls { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }";
+  html += ".controls.triple { grid-template-columns: repeat(3, 1fr); }";
+  html += ".controls.quad { grid-template-columns: repeat(4, 1fr); }";
+  html += "button { background: #1a1a1a; color: #fff; border: 3px solid #333; padding: 18px 12px; cursor: pointer; font-family: 'IBM Plex Mono', monospace; ";
+  html += "font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; transition: all 0.15s; position: relative; }";
+  html += "button:before { content: ''; position: absolute; top: 4px; left: 4px; right: 4px; bottom: 4px; border: 1px solid #222; pointer-events: none; opacity: 0; transition: opacity 0.15s; }";
+  html += "button:hover { background: #222; border-color: #00ff41; color: #00ff41; transform: translateY(-2px); }";
+  html += "button:hover:before { opacity: 1; border-color: #00ff41; }";
+  html += "button:active { transform: translateY(0); }";
+  html += "button.primary { border-color: #00ff41; color: #00ff41; }";
+  html += "button.primary:hover { background: #00ff41; color: #000; }";
+  html += "button.danger { border-color: #ff0033; color: #ff0033; }";
+  html += "button.danger:hover { background: #ff0033; color: #000; }";
+  html += "button.warning { border-color: #ffaa00; color: #ffaa00; }";
+  html += "button.warning:hover { background: #ffaa00; color: #000; }";
+  html += ".sync-warning { background: #1a1400; border: 2px solid #ffaa00; padding: 16px; margin-top: 16px; }";
+  html += ".sync-warning p { font-size: 11px; color: #ffaa00; margin-bottom: 12px; letter-spacing: 1px; }";
+  html += ".sync-warning .controls { margin-top: 12px; }";
+  html += ".footer { text-align: center; margin-top: 40px; padding: 20px; border-top: 1px solid #222; }";
+  html += ".footer-line { font-size: 11px; color: #666; letter-spacing: 2px; margin: 4px 0; }";
+  html += ".blink { animation: blink 1.5s infinite; }";
+  html += "@media (max-width: 480px) { .controls, .controls.triple, .controls.quad { grid-template-columns: 1fr; } .status-grid { grid-template-columns: 1fr; } h1 { font-size: 36px; } }";
   html += "</style></head><body>";
   html += "<div class='container'>";
-  html += "<h1>Artika Fan Controller</h1>";
 
-  html += "<div class='status'>";
-  html += "<div class='status-item'><strong>Light:</strong> " + String(isLightOn ? "ON" : "OFF") + "</div>";
-  html += "<div class='status-item'><strong>Brightness:</strong> " + String(brightnessLevel) + "/5</div>";
-  html += "<div class='status-item'><strong>Fan:</strong> " + String(isFanOn ? "ON" : "OFF") + "</div>";
-  html += "<div class='status-item'><strong>Fan Speed:</strong> ";
-  switch(currentFanSpeed) {
-    case 0: html += "OFF"; break;
-    case 1: html += "LOW"; break;
-    case 2: html += "MEDIUM"; break;
-    case 3: html += "HIGH"; break;
+  html += "<div class='header'>";
+  html += "<h1>ARTIKA</h1>";
+  html += "<div class='subtitle'>IoT Control Interface</div>";
+  html += "</div>";
+
+  html += "<div class='panel'>";
+  html += "<div class='panel-header'><div class='panel-title'>System Status</div><div style='font-size:10px;color:#666;'>LIVE <span class='blink'>●</span></div></div>";
+  html += "<div class='panel-body'>";
+  html += "<div class='status-grid'>";
+
+  html += "<div class='status-box'><div class='status-label'>Light Status</div>";
+  html += "<div class='status-value " + String(isLightOn ? "on" : "off") + "'>" + String(isLightOn ? "ON" : "OFF") + "</div></div>";
+
+  html += "<div class='status-box'><div class='status-label'>Brightness</div>";
+  html += "<div class='status-value'>" + String(brightnessLevel) + "</div>";
+  html += "<div class='brightness-bar'>";
+  for(int i = 1; i <= 5; i++) {
+    html += "<span" + String(i <= brightnessLevel ? " class='active'" : "") + "></span>";
   }
   html += "</div></div>";
 
-  html += "<div class='control-section'>";
-  html += "<h2>Light Control</h2>";
-  html += "<div class='btn-group'>";
-  html += "<button onclick=\"location.href='/light/toggle'\">Toggle Light</button>";
-  html += "<button onclick=\"location.href='/brightness/up'\">Brightness +</button>";
-  html += "<button onclick=\"location.href='/brightness/down'\">Brightness -</button>";
+  html += "<div class='status-box'><div class='status-label'>Fan Status</div>";
+  html += "<div class='status-value " + String(isFanOn ? "on" : "off") + "'>" + String(isFanOn ? "ON" : "OFF") + "</div></div>";
+
+  html += "<div class='status-box'><div class='status-label'>Fan Speed</div>";
+  html += "<div class='status-value'>";
+  switch(currentFanSpeed) {
+    case 0: html += "0"; break;
+    case 1: html += "1"; break;
+    case 2: html += "2"; break;
+    case 3: html += "3"; break;
+  }
+  html += "</div>";
+  html += "<div class='fan-visual'>";
+  for(int i = 1; i <= 3; i++) {
+    html += "<div class='fan-blade" + String(i <= currentFanSpeed ? " active" : "") + "'></div>";
+  }
   html += "</div></div>";
 
-  html += "<div class='control-section'>";
-  html += "<h2>Fan Control</h2>";
-  html += "<div class='btn-group'>";
-  html += "<button onclick=\"location.href='/fan/off'\">Fan Off</button>";
-  html += "<button onclick=\"location.href='/fan/low'\">Low</button>";
-  html += "<button onclick=\"location.href='/fan/medium'\">Medium</button>";
-  html += "<button onclick=\"location.href='/fan/high'\">High</button>";
-  html += "</div></div>";
+  html += "</div></div></div>";
 
-  html += "<div class='control-section'>";
-  html += "<h2>State Sync</h2>";
-  html += "<p style='font-size: 14px; color: #666;'>If light state is out of sync, click to set:</p>";
-  html += "<div class='btn-group'>";
-  html += "<button class='success' onclick=\"location.href='/sync/light/on'\">Light is ON</button>";
-  html += "<button onclick=\"location.href='/sync/light/off'\">Light is OFF</button>";
-  html += "</div></div>";
+  html += "<div class='panel'>";
+  html += "<div class='panel-header'><div class='panel-title'>Light Control</div></div>";
+  html += "<div class='panel-body'>";
+  html += "<div class='controls triple'>";
+  html += "<button class='primary' onclick=\"location.href='/light/toggle'\">TOGGLE</button>";
+  html += "<button onclick=\"location.href='/brightness/up'\">BRIGHT +</button>";
+  html += "<button onclick=\"location.href='/brightness/down'\">BRIGHT –</button>";
+  html += "</div></div></div>";
 
-  html += "<div style='text-align: center; margin-top: 20px; font-size: 12px; color: #999;'>";
-  html += "IP: " + WiFi.localIP().toString() + "<br>";
-  html += "Hostname: artika-fan.local</div>";
-  html += "</div></body></html>";
+  html += "<div class='panel'>";
+  html += "<div class='panel-header'><div class='panel-title'>Fan Control</div></div>";
+  html += "<div class='panel-body'>";
+  html += "<div class='controls quad'>";
+  html += "<button class='danger' onclick=\"location.href='/fan/off'\">OFF</button>";
+  html += "<button onclick=\"location.href='/fan/low'\">LOW</button>";
+  html += "<button onclick=\"location.href='/fan/medium'\">MEDIUM</button>";
+  html += "<button onclick=\"location.href='/fan/high'\">HIGH</button>";
+  html += "</div></div></div>";
+
+  html += "<div class='panel'>";
+  html += "<div class='panel-header'><div class='panel-title'>State Synchronization</div></div>";
+  html += "<div class='panel-body'>";
+  html += "<div class='sync-warning'>";
+  html += "<p>⚠ MANUAL OVERRIDE: USE IF STATE DESYNCHRONIZED</p>";
+  html += "<div class='controls'>";
+  html += "<button class='primary' onclick=\"location.href='/sync/light/on'\">FORCE ON</button>";
+  html += "<button class='warning' onclick=\"location.href='/sync/light/off'\">FORCE OFF</button>";
+  html += "</div></div></div></div>";
+
+  html += "<div class='footer'>";
+  html += "<div class='footer-line'>NETWORK: " + WiFi.localIP().toString() + "</div>";
+  html += "<div class='footer-line'>HOSTNAME: artika-fan.local</div>";
+  html += "</div></div></body></html>";
 
   webServer.send(200, "text/html", html);
 }
