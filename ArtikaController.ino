@@ -117,7 +117,7 @@ void publishHomeAssistantDiscovery() {
                   "\"model\":\"ESP8266 RF Controller\","
                   "\"manufacturer\":\"Custom\"}";
 
-  // Light discovery
+  // Light discovery with fixed brightness levels (1-5)
   String lightConfig = "{\"name\":\"Artika Light\","
                        "\"unique_id\":\"" + String(deviceId) + "_light\","
                        "\"command_topic\":\"artika/light/set\","
@@ -369,19 +369,24 @@ void callback(char* topic, byte* payload, unsigned int length) {
   else if (topicStr == "artika/light/brightness/set") {
     int newBrightness = command.toInt();
     if (newBrightness >= 1 && newBrightness <= 5) {
-      skipNextReceive = true;
-      int diff = newBrightness - brightnessLevel;
-      const char* brightCmd = (diff > 0) ? "brightness-up" : "brightness-down";
+      // Only adjust brightness if light is ON
+      if (isLightOn) {
+        skipNextReceive = true;
+        int diff = newBrightness - brightnessLevel;
+        const char* brightCmd = (diff > 0) ? "brightness-up" : "brightness-down";
 
-      for (int i = 0; i < abs(diff); i++) {
-        mySwitchSend.send(commandsToCodes[brightCmd].code, commandsToCodes[brightCmd].length);
-        delay(300);
+        for (int i = 0; i < abs(diff); i++) {
+          mySwitchSend.send(commandsToCodes[brightCmd].code, commandsToCodes[brightCmd].length);
+          delay(300);
+        }
+        brightnessLevel = newBrightness;
+
+        pubSubClient.publish("artika/light/brightness/state", String(brightnessLevel).c_str());
+        Serial.print("Brightness set to: ");
+        Serial.println(brightnessLevel);
+      } else {
+        Serial.println("Brightness change ignored - light is OFF");
       }
-      brightnessLevel = newBrightness;
-
-      pubSubClient.publish("artika/light/brightness/state", String(brightnessLevel).c_str());
-      Serial.print("Brightness set to: ");
-      Serial.println(brightnessLevel);
     }
   }
   // Handle fan commands
@@ -391,6 +396,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
       mySwitchSend.send(commandsToCodes["fan-low"].code, commandsToCodes["fan-low"].length);
       isFanOn = true;
       currentFanSpeed = 1;
+      pubSubClient.publish(mqttFanStateTopic, "ON");
       pubSubClient.publish(mqttFanSpeedStateTopic, "1");
       Serial.println("Fan turned ON (speed: 1)");
     } else if (command == "OFF") {
@@ -398,6 +404,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
       mySwitchSend.send(commandsToCodes["fan-off"].code, commandsToCodes["fan-off"].length);
       isFanOn = false;
       currentFanSpeed = 0;
+      pubSubClient.publish(mqttFanStateTopic, "OFF");
       pubSubClient.publish(mqttFanSpeedStateTopic, "0");
       Serial.println("Fan turned OFF (speed: 0)");
     }
@@ -456,19 +463,36 @@ void callback(char* topic, byte* payload, unsigned int length) {
       skipNextReceive = true;
       mySwitchSend.send(it->second.code, it->second.length);
 
-      // Update fan state for direct commands
-      if (commandKey == "fan-off") {
+      // Update state and publish to MQTT for direct commands
+      if (commandKey == "toggle-light") {
+        isLightOn = !isLightOn;
+        pubSubClient.publish(mqttLightStateTopic, isLightOn ? "ON" : "OFF");
+      } else if (commandKey == "brightness-up" && brightnessLevel < 5) {
+        brightnessLevel++;
+        pubSubClient.publish("artika/light/brightness/state", String(brightnessLevel).c_str());
+      } else if (commandKey == "brightness-down" && brightnessLevel > 1) {
+        brightnessLevel--;
+        pubSubClient.publish("artika/light/brightness/state", String(brightnessLevel).c_str());
+      } else if (commandKey == "fan-off") {
         isFanOn = false;
         currentFanSpeed = 0;
+        pubSubClient.publish(mqttFanStateTopic, "OFF");
+        pubSubClient.publish(mqttFanSpeedStateTopic, "0");
       } else if (commandKey == "fan-low") {
         isFanOn = true;
         currentFanSpeed = 1;
+        pubSubClient.publish(mqttFanStateTopic, "ON");
+        pubSubClient.publish(mqttFanSpeedStateTopic, "1");
       } else if (commandKey == "fan-medium") {
         isFanOn = true;
         currentFanSpeed = 2;
+        pubSubClient.publish(mqttFanStateTopic, "ON");
+        pubSubClient.publish(mqttFanSpeedStateTopic, "2");
       } else if (commandKey == "fan-high") {
         isFanOn = true;
         currentFanSpeed = 3;
+        pubSubClient.publish(mqttFanStateTopic, "ON");
+        pubSubClient.publish(mqttFanSpeedStateTopic, "3");
       }
     } else {
       Serial.print("Unknown command: ");
