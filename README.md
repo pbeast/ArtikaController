@@ -63,6 +63,8 @@ const char* MQTT_PASSWORD = "mqtt_password";
 
 ## Usage
 
+**Important:** The controller assumes the light is **ON** with **maximum brightness (level 5)** when it starts. If your light is in a different state at startup, the controller's internal state will not match the physical device. See [Troubleshooting -> Light State Out of Sync](#light-state-out-of-sync) for how to resolve this.
+
 ### Web Interface
 
 Access the web interface at:
