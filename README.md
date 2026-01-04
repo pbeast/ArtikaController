@@ -1,0 +1,174 @@
+# Artika Fan Controller
+
+ESP8266-based RF to MQTT bridge for controlling Artika ceiling fan with light via Home Assistant.
+
+**Tested with:** Artika Sunnyvale Fandelier
+**Compatibility:** May work with other Artika fan models using 433MHz RF remotes (RF codes may need adjustment)
+
+## Features
+
+- **RF Control**: Receives and transmits 433MHz RF signals to control Artika fan
+- **MQTT Integration**: Full Home Assistant MQTT Discovery support
+- **Web Interface**: Built-in web UI for manual control and state synchronization
+- **Physical Button**: Optional button for light toggle control
+- **State Synchronization**: Maintains state across RF remote, MQTT, and web interfaces
+
+## Hardware Requirements
+
+- ESP8266 board (NodeMCU, Wemos D1 Mini, etc.)
+- 433MHz RF receiver module
+- 433MHz RF transmitter module
+- Optional: Push button for manual light control
+
+## Pin Configuration
+
+| Pin | Function |
+|-----|----------|
+| GPIO 13 | RF Receiver Data |
+| GPIO 12 | RF Transmitter Data |
+| GPIO 14 | Physical Button (optional) |
+
+## Installation
+
+1. Clone this repository
+2. Copy `wifi_config.h.example` to `wifi_config.h` and update with your WiFi credentials
+3. Update MQTT broker IP address in `ArtikaController.ino` (line 77)
+4. Install required Arduino libraries:
+   - RCSwitch
+   - ESP8266WiFi
+   - ESP8266WebServer
+   - ESP8266mDNS
+   - PubSubClient
+5. Upload to ESP8266 board
+
+## Configuration
+
+### WiFi Settings
+
+Create a `wifi_config.h` file with your credentials:
+
+```cpp
+#ifndef WIFI_CONFIG_H
+#define WIFI_CONFIG_H
+
+const char* WIFI_SSID = "YourSSID";
+const char* WIFI_PASSWORD = "YourPassword";
+
+#endif
+```
+
+### MQTT Settings
+
+Update the MQTT broker IP address in `ArtikaController.ino`:
+
+```cpp
+IPAddress server(192, 168, 0, 64);  // Change to your MQTT broker IP
+```
+
+Update MQTT credentials in the `reconnectMQTT()` function if needed:
+
+```cpp
+pubSubClient.connect("ArtikaControllerClient", "mqtt_username", "mqtt_password")
+```
+
+## Usage
+
+### Web Interface
+
+Access the web interface at:
+- `http://artika-fan.local` (via mDNS)
+- `http://<ESP8266_IP_ADDRESS>`
+
+The web interface provides:
+- Real-time device status display
+- Light and fan control buttons
+- Brightness adjustment
+- State synchronization controls
+- Manual calibration trigger
+
+### Home Assistant Integration
+
+The device automatically registers with Home Assistant via MQTT Discovery. You'll see two entities:
+
+1. **Artika Light** - Controllable light with brightness (1-5 levels)
+2. **Artika Fan** - Controllable fan with three speed levels (Low, Medium, High)
+
+### MQTT Topics
+
+**Command Topics:**
+- `artika/light/set` - Light ON/OFF
+- `artika/light/brightness/set` - Brightness (1-5)
+- `artika/fan/set` - Fan ON/OFF
+- `artika/fan/speed/set` - Fan speed (0-3)
+
+**State Topics:**
+- `artika/light/state` - Light state
+- `artika/light/brightness/state` - Brightness level
+- `artika/fan/state` - Fan state
+- `artika/fan/speed/state` - Fan speed
+
+## Calibration
+
+The calibration function sets the device to a known state:
+- Sets brightness to maximum (level 5)
+- Toggles light off then on
+- Turns fan off
+
+Calibration can be triggered via:
+- Web interface: Click "Run Calibration" button
+- Web endpoint: `http://artika-fan.local/calibrate`
+
+## Project Structure
+
+```
+ArtikaController/
+├── ArtikaController.ino    # Main sketch
+├── RfCode.h                 # RF code definitions
+├── WebServer.h              # Web interface implementation
+├── wifi_config.h            # WiFi credentials (gitignored)
+├── .gitignore               # Git ignore rules
+└── README.md                # This file
+```
+
+## RF Codes
+
+The following RF codes are pre-configured for the Artika Sunnyvale Fandelier. If you have a different Artika fan model, you may need to capture and update these codes:
+
+| Command | Code | Length |
+|---------|------|--------|
+| Toggle Light | 14432773 | 24 |
+| Fan Off | 14432816 | 24 |
+| Fan Low | 14432819 | 24 |
+| Fan Medium | 14432794 | 24 |
+| Fan High | 14432818 | 24 |
+| Brightness Up | 14432793 | 24 |
+| Brightness Down | 14432821 | 24 |
+
+## Troubleshooting
+
+### Light State Out of Sync
+
+If the light state becomes out of sync with the physical device:
+1. Navigate to the web interface
+2. Under "State Sync" section, click the button that matches the actual physical state
+3. This will update the controller's internal state without sending any RF commands
+
+### MQTT Connection Issues
+
+- Verify MQTT broker IP address and credentials
+- Check that MQTT broker is running and accessible
+- Review Serial Monitor output for connection errors
+
+### RF Signal Issues
+
+- Ensure RF modules are properly connected
+- Check antenna connections
+- Verify RF codes match your specific Artika fan model
+
+## License
+
+MIT License
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
