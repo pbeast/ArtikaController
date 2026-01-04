@@ -81,18 +81,19 @@ void connectToWiFi() {
 void setup() {
   Serial.begin(115200);
 
-  fillCommandsMap();
-
-  connectToWiFi();
-
-  pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(BTN_PIN, INPUT_PULLUP);
-
-  // Initialize RF transmit pin LOW to prevent spurious signals during boot
+  // CRITICAL: Initialize RF transmit pin FIRST to prevent spurious signals during boot
+  // Must be done BEFORE WiFi connection which can take several seconds
   pinMode(RC_SEND_PIN, OUTPUT);
   digitalWrite(RC_SEND_PIN, LOW);
 
+  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(BTN_PIN, INPUT_PULLUP);
+  
   digitalWrite(LED_BUILTIN, HIGH);
+
+  fillCommandsMap();
+
+  connectToWiFi();
 
   mySwitchSend.enableTransmit(RC_SEND_PIN);
   mySwitchSend.setProtocol(1);
@@ -208,6 +209,8 @@ void reconnectMQTT() {
       // Publish current state after reconnecting
       delay(500);
       publishCurrentState();
+
+
     } else {
       Serial.print("failed, rc=");
       Serial.print(pubSubClient.state());
@@ -233,9 +236,11 @@ void handleRFCommand(unsigned long receivedCode) {
     if (receivedCommand == "toggle-light") {
       isLightOn = !isLightOn;
       String lightState = isLightOn ? "ON" : "OFF";
-      pubSubClient.publish(mqttLightStateTopic, lightState.c_str());
-      Serial.print("Published light state: ");
-      Serial.println(lightState);
+      bool published = pubSubClient.publish(mqttLightStateTopic, lightState.c_str());
+      Serial.print("RF Remote: Light toggled to ");
+      Serial.print(lightState);
+      Serial.print(" - MQTT publish: ");
+      Serial.println(published ? "SUCCESS" : "FAILED");
     } else if (receivedCommand == "brightness-up") {
       if (brightnessLevel < 5) {
         brightnessLevel++;
@@ -286,9 +291,9 @@ void processRFReceive(unsigned long& lastReceivedCode, unsigned long& lastReceiv
 
   unsigned long currentTime = millis();
 
-  // Debounce: ignore if same code received within 100ms
-  if (receivedCode == lastReceivedCode && (currentTime - lastReceivedTime) < 100) {
-    Serial.println("Ignored duplicate command (debounce)");
+  // Debounce: ignore if same code received within 500ms
+  if (receivedCode == lastReceivedCode && (currentTime - lastReceivedTime) < 500) {
+    Serial.println("Ignored duplicate RF command (debounce)");
     return;
   }
 
@@ -523,6 +528,7 @@ void loop() {
       if (!skipNextReceive) {
         processRFReceive(lastReceivedCode, lastReceivedTime);
       } else {
+        Serial.println("Skipped RF receive (echo prevention)");
         skipNextReceive = false;
         mySwitchReceive.resetAvailable();
       }
