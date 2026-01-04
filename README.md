@@ -31,44 +31,34 @@ ESP8266-based RF to MQTT bridge for controlling Artika ceiling fan with light vi
 ## Installation
 
 1. Clone this repository
-2. Copy `wifi_config.h.example` to `wifi_config.h` and update with your WiFi credentials
-3. Update MQTT broker IP address in `ArtikaController.ino` (line 77)
-4. Install required Arduino libraries:
+2. Create a `config.h` file with your WiFi and MQTT credentials (see Configuration section)
+3. Install required Arduino libraries:
    - RCSwitch
    - ESP8266WiFi
    - ESP8266WebServer
    - ESP8266mDNS
    - PubSubClient
-5. Upload to ESP8266 board
+4. Upload to ESP8266 board
 
 ## Configuration
 
-### WiFi Settings
-
-Create a `wifi_config.h` file with your credentials:
+Create a `config.h` file with your WiFi and MQTT credentials:
 
 ```cpp
-#ifndef WIFI_CONFIG_H
-#define WIFI_CONFIG_H
+#ifndef CONFIG_H
+#define CONFIG_H
 
+// WiFi Configuration
 const char* WIFI_SSID = "YourSSID";
 const char* WIFI_PASSWORD = "YourPassword";
 
+// MQTT Configuration
+const char* MQTT_SERVER = "192.168.1.100";
+const int MQTT_SERVER_PORT = 1883;
+const char* MQTT_USERNAME = "mqtt_username";
+const char* MQTT_PASSWORD = "mqtt_password";
+
 #endif
-```
-
-### MQTT Settings
-
-Update the MQTT broker IP address in `ArtikaController.ino`:
-
-```cpp
-IPAddress server(192, 168, 0, 64);  // Change to your MQTT broker IP
-```
-
-Update MQTT credentials in the `reconnectMQTT()` function if needed:
-
-```cpp
-pubSubClient.connect("ArtikaControllerClient", "mqtt_username", "mqtt_password")
 ```
 
 ## Usage
@@ -125,7 +115,7 @@ ArtikaController/
 ├── ArtikaController.ino    # Main sketch
 ├── RfCode.h                 # RF code definitions
 ├── WebServer.h              # Web interface implementation
-├── wifi_config.h            # WiFi credentials (gitignored)
+├── config.h                 # WiFi and MQTT credentials (gitignored)
 ├── .gitignore               # Git ignore rules
 └── README.md                # This file
 ```

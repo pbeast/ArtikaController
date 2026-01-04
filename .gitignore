@@ -1,5 +1,5 @@
-# WiFi credentials
-wifi_config.h
+# Configuration file with WiFi and MQTT credentials
+config.h
 
 # Arduino build files
 *.hex

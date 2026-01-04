@@ -19,7 +19,7 @@
 
 #include "RfCode.h"
 #include "WebServer.h"
-#include "wifi_config.h"
+#include "config.h"
 
 // Increase MQTT buffer size for discovery messages
 #define MQTT_MAX_PACKET_SIZE_FOR_DISCOVERY 768
@@ -73,8 +73,7 @@ void connectToWiFi() {
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
 
-  IPAddress server(192, 168, 0, 64);
-  pubSubClient.setServer(server, 1883);
+  pubSubClient.setServer(MQTT_SERVER, MQTT_SERVER_PORT);
   pubSubClient.setBufferSize(MQTT_MAX_PACKET_SIZE_FOR_DISCOVERY);
   pubSubClient.setCallback(callback);
 }
@@ -225,7 +224,7 @@ void publishCurrentState() {
 void reconnectMQTT() {
   while (!pubSubClient.connected()) {
     Serial.print("Attempting MQTT connection...");
-    if (pubSubClient.connect("ArtikaControllerClient", "mqtt", "!111Zzzz")) {
+    if (pubSubClient.connect("ArtikaControllerClient", MQTT_USERNAME, MQTT_PASSWORD)) {
       Serial.println("connected");
       pubSubClient.subscribe(mqttTopic);
       pubSubClient.subscribe("artika/light/set");
