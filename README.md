@@ -3,6 +3,7 @@
 ESP8266-based RF to MQTT bridge for controlling Artika ceiling fan with light via Home Assistant.
 
 **Tested with:** Artika Sunnyvale Fandelier
+
 **Compatibility:** May work with other Artika fan models using 433MHz RF remotes (RF codes may need adjustment)
 
 ## Features
