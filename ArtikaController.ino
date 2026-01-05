@@ -13,6 +13,7 @@
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include <PubSubClient.h>
+#include <ArduinoOTA.h>
 
 #include <map>
 #include <string>
@@ -78,8 +79,65 @@ void connectToWiFi() {
   pubSubClient.setCallback(callback);
 }
 
+void setupOTA() {
+  // Port defaults to 8266
+  ArduinoOTA.setPort(8266);
+
+  // Hostname defaults to esp8266-[ChipID]
+  ArduinoOTA.setHostname("artika-fan");
+
+  ArduinoOTA.setPassword(OTA_PASSWORD);
+
+  ArduinoOTA.onStart([]() {
+    String type;
+    if (ArduinoOTA.getCommand() == U_FLASH) {
+      type = "sketch";
+    } else { // U_FS
+      type = "filesystem";
+    }
+
+    // Disable RF receiver during OTA to prevent interference
+    mySwitchReceive.disableReceive();
+
+    Serial.println("Start updating " + type);
+  });
+
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\nEnd");
+  });
+
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) {
+      Serial.println("Auth Failed");
+    } else if (error == OTA_BEGIN_ERROR) {
+      Serial.println("Begin Failed");
+    } else if (error == OTA_CONNECT_ERROR) {
+      Serial.println("Connect Failed");
+    } else if (error == OTA_RECEIVE_ERROR) {
+      Serial.println("Receive Failed");
+    } else if (error == OTA_END_ERROR) {
+      Serial.println("End Failed");
+    }
+  });
+
+  ArduinoOTA.begin();
+  Serial.println("OTA ready");
+}
+
 void setup() {
   Serial.begin(115200);
+
+  unsigned long start = millis();
+  while (!Serial && (millis() - start < 5000)) {
+    
+  }
+  Serial.println("");
+  Serial.println("Serial ready");
 
   // CRITICAL: Initialize RF transmit pin FIRST to prevent spurious signals during boot
   // Must be done BEFORE WiFi connection which can take several seconds
@@ -88,7 +146,7 @@ void setup() {
 
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(BTN_PIN, INPUT_PULLUP);
-  
+
   digitalWrite(LED_BUILTIN, HIGH);
 
   fillCommandsMap();
@@ -99,17 +157,15 @@ void setup() {
   mySwitchSend.setProtocol(1);
   mySwitchSend.setPulseLength(405);
 
-  // Sync fan state: turn off fan on startup (before enabling receiver)
-  Serial.println("Syncing fan state: turning fan off");
-  mySwitchSend.send(commandsToCodes["fan-off"].code, commandsToCodes["fan-off"].length);
-  delay(500);
-
   // Now enable receiver after sync command
   mySwitchReceive.enableReceive(digitalPinToInterrupt(RC_RECEIVE_PIN));
 
   // Start mDNS and web server
   setupMDNS();
   setupWebServer();
+
+  // Setup OTA updates
+  setupOTA();
 
   Serial.println("");
   Serial.println("----------------- STARTED -----------------");
@@ -159,6 +215,13 @@ void publishHomeAssistantDiscovery() {
   Serial.print("Published fan discovery: ");
   Serial.println(fanResult ? "SUCCESS" : "FAILED");
 
+
+
+  // Sync fan state: turn off fan on startup (before enabling receiver)
+  skipNextReceive = true;
+  Serial.println("Syncing fan state: turning fan off");
+  mySwitchSend.send(commandsToCodes["fan-off"].code, commandsToCodes["fan-off"].length);
+  delay(500);
 
   if (lightResult && fanResult)
     digitalWrite(LED_BUILTIN, LOW);
@@ -292,7 +355,7 @@ void processRFReceive(unsigned long& lastReceivedCode, unsigned long& lastReceiv
   unsigned long currentTime = millis();
 
   // Debounce: ignore if same code received within 500ms
-  if (receivedCode == lastReceivedCode && (currentTime - lastReceivedTime) < 500) {
+  if (receivedCode == lastReceivedCode && (currentTime - lastReceivedTime) < 400) {
     Serial.println("Ignored duplicate RF command (debounce)");
     return;
   }
@@ -511,6 +574,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
 }
 
 void loop() {
+  ArduinoOTA.handle();
+
   if (!pubSubClient.connected()) {
     reconnectMQTT();
   }

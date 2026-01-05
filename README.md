@@ -38,7 +38,8 @@ ESP8266-based RF to MQTT bridge for controlling Artika ceiling fan with light vi
    - ESP8266WebServer
    - ESP8266mDNS
    - PubSubClient
-4. Upload to ESP8266 board
+   - ArduinoOTA (comes with ESP8266 board package)
+4. Upload to ESP8266 board (initial upload via USB required)
 
 ## Configuration
 
@@ -101,6 +102,31 @@ The device automatically registers with Home Assistant via MQTT Discovery. You'l
 - `artika/light/brightness/state` - Brightness level
 - `artika/fan/state` - Fan state
 - `artika/fan/speed/state` - Fan speed
+
+### Over-The-Air (OTA) Updates
+
+After the initial USB upload, you can update the firmware wirelessly over WiFi:
+
+**Using Arduino IDE:**
+1. Go to Tools > Port
+2. Select "artika-fan at <IP_ADDRESS>" from the network ports
+3. Upload as usual
+
+**Using Arduino CLI:**
+```bash
+arduino-cli upload -p artika-fan.local --fqbn esp8266:esp8266:nodemcuv2 .
+```
+
+**Using PlatformIO:**
+```bash
+pio run --target upload --upload-port artika-fan.local
+```
+
+**Notes:**
+- OTA is available at hostname `artika-fan.local` or the ESP8266's IP address
+- Port 8266 is used for OTA updates
+- RF receiver is automatically disabled during OTA to prevent interference
+- First upload must be done via USB; subsequent uploads can use OTA
 
 ## Project Structure
 
