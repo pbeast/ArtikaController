@@ -6,9 +6,11 @@
 #include <map>
 #include <string>
 #include "RfCode.h"
+#include "LogBuffer.h"
 
 extern ESP8266WebServer webServer;
 extern PubSubClient pubSubClient;
+extern LogBuffer Log;
 
 extern unsigned int brightnessLevel;
 extern bool isLightOn;
@@ -83,6 +85,18 @@ void handleWebRoot() {
   html += ".footer-line { font-size: 11px; color: #666; letter-spacing: 2px; margin: 4px 0; }";
   html += ".blink { animation: blink 1.5s infinite; }";
   html += "@media (max-width: 480px) { .controls, .controls.triple, .controls.quad { grid-template-columns: 1fr; } .status-grid { grid-template-columns: 1fr; } h1 { font-size: 36px; } }";
+
+  // Monitor panel styles
+  html += ".monitor-toggle { cursor: pointer; user-select: none; }";
+  html += ".monitor-arrow { display: inline-block; transition: transform 0.2s; font-size: 12px; margin-right: 6px; }";
+  html += ".monitor-arrow.open { transform: rotate(90deg); }";
+  html += "#monitor-body { display: none; }";
+  html += "#monitor-log { background: #000; border: 2px solid #222; height: 320px; overflow-y: auto; padding: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; }";
+  html += "#monitor-log .log-line { color: #00ff41; line-height: 1.6; word-break: break-all; }";
+  html += ".monitor-controls { display: flex; align-items: center; gap: 16px; margin-top: 12px; }";
+  html += ".monitor-controls label { font-size: 11px; color: #666; letter-spacing: 1px; cursor: pointer; display: flex; align-items: center; gap: 6px; }";
+  html += ".monitor-controls input[type=checkbox] { accent-color: #00ff41; }";
+
   html += "</style></head><body>";
   html += "<div class='container'>";
 
@@ -164,10 +178,53 @@ void handleWebRoot() {
   html += "<button class='primary' onclick=\"location.href='/sync/fan/high'\">Fan HIGH</button>";
   html += "</div></div></div></div>";
 
+  // System Monitor panel
+  html += "<div class='panel' style='margin-top:24px;'>";
+  html += "<div class='panel-header monitor-toggle' onclick='toggleMonitor()'>";
+  html += "<div class='panel-title'><span class='monitor-arrow' id='mon-arrow'>&#9654;</span>SYSTEM MONITOR</div>";
+  html += "<div style='font-size:10px;color:#666;' id='mon-status'></div>";
+  html += "</div>";
+  html += "<div id='monitor-body' class='panel-body' style='padding:16px;'>";
+  html += "<div id='monitor-log'></div>";
+  html += "<div class='monitor-controls'>";
+  html += "<label><input type='checkbox' id='mon-follow' checked> FOLLOW</label>";
+  html += "</div>";
+  html += "</div></div>";
+
+  // Monitor JavaScript
+  html += "<script>";
+  html += "var monOpen=false,sinceId=0,pollTimer=null;";
+  html += "function toggleMonitor(){";
+  html += "monOpen=!monOpen;";
+  html += "document.getElementById('monitor-body').style.display=monOpen?'block':'none';";
+  html += "document.getElementById('mon-arrow').classList.toggle('open',monOpen);";
+  html += "if(monOpen){poll();pollTimer=setInterval(poll,2000);}";
+  html += "else{if(pollTimer){clearInterval(pollTimer);pollTimer=null;}document.getElementById('mon-status').textContent='';}";
+  html += "}";
+  html += "function poll(){";
+  html += "fetch('/api/logs?since='+sinceId).then(function(r){return r.json();}).then(function(d){";
+  html += "sinceId=d.n;";
+  html += "var el=document.getElementById('monitor-log');";
+  html += "var lines=d.l;";
+  html += "for(var i=0;i<lines.length;i++){";
+  html += "var div=document.createElement('div');";
+  html += "div.className='log-line';";
+  html += "div.textContent=lines[i];";
+  html += "el.appendChild(div);";
+  html += "}";
+  html += "while(el.children.length>250){el.removeChild(el.firstChild);}";
+  html += "if(document.getElementById('mon-follow').checked&&lines.length>0){el.scrollTop=el.scrollHeight;}";
+  html += "document.getElementById('mon-status').textContent='LIVE';";
+  html += "}).catch(function(){document.getElementById('mon-status').textContent='ERR';});";
+  html += "}";
+  html += "</script>";
+
   html += "<div class='footer'>";
   html += "<div class='footer-line'>NETWORK: " + WiFi.localIP().toString() + "</div>";
   html += "<div class='footer-line'>HOSTNAME: artika-fan.local</div>";
-  html += "</div></div></body></html>";
+  html += "</div>";
+
+  html += "</div></body></html>";
 
   webServer.send(200, "text/html", html);
 }
@@ -179,7 +236,7 @@ void handleCommand(String command) {
 
   // Debounce: ignore duplicate commands within 500ms
   if (command == lastCommand && (currentTime - lastCommandTime) < 500) {
-    Serial.println("Ignored duplicate web command (debounce)");
+    Log.println("Ignored duplicate web command (debounce)");
     webServer.sendHeader("Location", "/");
     webServer.send(303);
     return;
@@ -229,6 +286,15 @@ void handleCommand(String command) {
   webServer.send(303);
 }
 
+void handleLogsAPI() {
+  unsigned long since = 0;
+  if (webServer.hasArg("since")) {
+    since = strtoul(webServer.arg("since").c_str(), nullptr, 10);
+  }
+  String json = Log.getLogsSince(since);
+  webServer.send(200, "application/json", json);
+}
+
 void setupWebServer() {
   webServer.on("/", handleWebRoot);
 
@@ -240,6 +306,8 @@ void setupWebServer() {
   webServer.on("/fan/low", []() { handleCommand("fan-low"); });
   webServer.on("/fan/medium", []() { handleCommand("fan-medium"); });
   webServer.on("/fan/high", []() { handleCommand("fan-high"); });
+
+  webServer.on("/api/logs", handleLogsAPI);
 
   webServer.on("/sync/light/on", []() {
     isLightOn = true;
@@ -292,15 +360,15 @@ void setupWebServer() {
   });
 
   webServer.begin();
-  Serial.println("Web server started");
+  Log.println("Web server started");
 }
 
 void setupMDNS() {
   if (MDNS.begin("artika-fan")) {
-    Serial.println("mDNS responder started: artika-fan.local");
+    Log.println("mDNS responder started: artika-fan.local");
     MDNS.addService("http", "tcp", 80);
   } else {
-    Serial.println("Error starting mDNS");
+    Log.println("Error starting mDNS");
   }
 }
 
