@@ -59,6 +59,15 @@ const char* MQTT_PASSWORD = "mqtt_password";
 // Optional: Override default brightness levels (default: 5)
 // #define LED_BRIGHTNESS_LEVELS 6
 
+// Optional: Override RF codes for your specific remote
+// #define RF_CODE_TOGGLE_LIGHT 14432773
+// #define RF_CODE_FAN_OFF 14432816
+// #define RF_CODE_FAN_LOW 14432819
+// #define RF_CODE_FAN_MEDIUM 14432794
+// #define RF_CODE_FAN_HIGH 14432818
+// #define RF_CODE_BRIGHTNESS_UP 14432793
+// #define RF_CODE_BRIGHTNESS_DOWN 14432821
+
 #endif
 ```
 
@@ -107,7 +116,6 @@ The system maintains synchronized state across three interfaces (RF remote, MQTT
 **RfCode struct** (RfCode.h):
 ```cpp
 struct RfCode {
-  const char* sCodeWord;  // Binary representation (currently unused)
   unsigned long code;     // Decimal code value
   unsigned int length;    // Bit length (24 for all Artika commands)
 };
@@ -115,9 +123,11 @@ struct RfCode {
 
 **Command mapping**: `std::map<std::string, RfCode> commandsToCodes` allows lookup by command name or reverse lookup by code value.
 
+**RF code overrides**: Default codes are defined as `#ifndef`-guarded `#define`s in RfCode.h. To use codes from a different remote, override them in `config.h` (e.g., `#define RF_CODE_TOGGLE_LIGHT 4381957`).
+
 **Adding new RF codes**:
 1. Capture codes using Serial Monitor (uncomment `output()` call in `processRFReceive`)
-2. Add to `fillCommandsMap()` in RfCode.h
+2. Add overrides to `config.h`, or update defaults in `fillCommandsMap()` in RfCode.h
 3. Add corresponding state handling in `handleRFCommand()` and MQTT callback
 
 ### Web Interface State Synchronization
