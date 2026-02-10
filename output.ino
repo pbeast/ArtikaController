@@ -4,27 +4,27 @@ static char * dec2binWzerofill(unsigned long Dec, unsigned int bitLength);
 void output(unsigned long decimal, unsigned int length, unsigned int delay, unsigned int* raw, unsigned int protocol) {
 
   const char* b = dec2binWzerofill(decimal, length);
-  Serial.print("Decimal: ");
-  Serial.print(decimal);
-  Serial.print(" (");
-  Serial.print( length );
-  Serial.print("Bit) Binary: ");
-  Serial.print( b );
-  Serial.print(" Tri-State: ");
-  Serial.print( bin2tristate( b) );
-  Serial.print(" PulseLength: ");
-  Serial.print(delay);
-  Serial.print(" microseconds");
-  Serial.print(" Protocol: ");
-  Serial.println(protocol);
-  
-  Serial.print("Raw data: ");
+  Log.print("Decimal: ");
+  Log.print(decimal);
+  Log.print(" (");
+  Log.print( length );
+  Log.print("Bit) Binary: ");
+  Log.print( b );
+  Log.print(" Tri-State: ");
+  Log.print( bin2tristate( b) );
+  Log.print(" PulseLength: ");
+  Log.print(delay);
+  Log.print(" microseconds");
+  Log.print(" Protocol: ");
+  Log.println(protocol);
+
+  Log.print("Raw data: ");
   for (unsigned int i=0; i<= length*2; i++) {
-    Serial.print(raw[i]);
-    Serial.print(",");
+    Log.print(raw[i]);
+    Log.print(",");
   }
-  Serial.println();
-  Serial.println();
+  Log.println();
+  Log.println();
 }
 
 static const char* bin2tristate(const char* bin) {
@@ -49,7 +49,7 @@ static const char* bin2tristate(const char* bin) {
 }
 
 static char * dec2binWzerofill(unsigned long Dec, unsigned int bitLength) {
-  static char bin[64]; 
+  static char bin[64];
   unsigned int i=0;
 
   while (Dec > 0) {
@@ -65,6 +65,6 @@ static char * dec2binWzerofill(unsigned long Dec, unsigned int bitLength) {
     }
   }
   bin[bitLength] = '\0';
-  
+
   return bin;
 }
