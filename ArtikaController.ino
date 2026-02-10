@@ -236,11 +236,13 @@ void publishHomeAssistantDiscovery() {
 
 
 
+#ifndef SUPPRESS_STARTUP_FAN_SYNC
   // Sync fan state: turn off fan on startup (before enabling receiver)
   skipNextReceive = true;
   Log.println("Syncing fan state: turning fan off");
   sendRF("fan-off");
   delay(500);
+#endif
 
   if (lightResult && fanResult)
     digitalWrite(LED_BUILTIN, LOW);

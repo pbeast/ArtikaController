@@ -68,6 +68,10 @@ const char* MQTT_PASSWORD = "mqtt_password";
 // #define RF_CODE_BRIGHTNESS_UP 14432793
 // #define RF_CODE_BRIGHTNESS_DOWN 14432821
 
+// Optional: Suppress the fan-off RF command sent on startup/MQTT reconnect
+// Enable this if your fan uses a toggle for on/off instead of a dedicated off command
+// #define SUPPRESS_STARTUP_FAN_SYNC
+
 #endif
 ```
 
