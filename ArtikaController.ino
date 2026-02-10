@@ -61,6 +61,16 @@ bool isLightOn = true;
 bool isFanOn = false;
 unsigned int currentFanSpeed = 0;
 
+void sendRF(const char* commandName) {
+  auto& rfCode = commandsToCodes[commandName];
+  Log.print("RF TX: ");
+  Log.print(commandName);
+  Log.print(" (code: ");
+  Log.print(rfCode.code);
+  Log.println(")");
+  mySwitchSend.send(rfCode.code, rfCode.length);
+}
+
 void connectToWiFi() {
   Log.println();
   Log.println();
@@ -229,7 +239,7 @@ void publishHomeAssistantDiscovery() {
   // Sync fan state: turn off fan on startup (before enabling receiver)
   skipNextReceive = true;
   Log.println("Syncing fan state: turning fan off");
-  mySwitchSend.send(commandsToCodes["fan-off"].code, commandsToCodes["fan-off"].length);
+  sendRF("fan-off");
   delay(500);
 
   if (lightResult && fanResult)
@@ -397,9 +407,7 @@ void handleButtonPress() {
       if (buttonState == HIGH) {
         skipNextReceive = true;
 
-        Log.println("Sending light toggle");
-        RfCode toggleCode = commandsToCodes["toggle-light"];
-        mySwitchSend.send(toggleCode.code, toggleCode.length);
+        sendRF("toggle-light");
 
         isLightOn = !isLightOn;
         String lightState = isLightOn ? "ON" : "OFF";
@@ -433,7 +441,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
     // Only toggle if the requested state is different from current state
     if (requestedState != isLightOn) {
       skipNextReceive = true;
-      mySwitchSend.send(commandsToCodes["toggle-light"].code, commandsToCodes["toggle-light"].length);
+      sendRF("toggle-light");
       isLightOn = requestedState;
 
       // Publish state back to MQTT
@@ -457,7 +465,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
         const char* brightCmd = (diff > 0) ? "brightness-up" : "brightness-down";
 
         for (int i = 0; i < abs(diff); i++) {
-          mySwitchSend.send(commandsToCodes[brightCmd].code, commandsToCodes[brightCmd].length);
+          sendRF(brightCmd);
           delay(300);
         }
         brightnessLevel = newBrightness;
@@ -474,7 +482,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   else if (topicStr == "artika/fan/set") {
     if (command == "ON") {
       skipNextReceive = true;
-      mySwitchSend.send(commandsToCodes["fan-low"].code, commandsToCodes["fan-low"].length);
+      sendRF("fan-low");
       isFanOn = true;
       currentFanSpeed = 1;
       pubSubClient.publish(mqttFanStateTopic, "ON");
@@ -482,7 +490,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
       Log.println("Fan turned ON (speed: 1)");
     } else if (command == "OFF") {
       skipNextReceive = true;
-      mySwitchSend.send(commandsToCodes["fan-off"].code, commandsToCodes["fan-off"].length);
+      sendRF("fan-off");
       isFanOn = false;
       currentFanSpeed = 0;
       pubSubClient.publish(mqttFanStateTopic, "OFF");
@@ -521,7 +529,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
       }
 
       if (speedCmd != nullptr) {
-        mySwitchSend.send(commandsToCodes[speedCmd].code, commandsToCodes[speedCmd].length);
+        sendRF(speedCmd);
         String fanState = isFanOn ? "ON" : "OFF";
         pubSubClient.publish(mqttFanStateTopic, fanState.c_str());
         pubSubClient.publish(mqttFanSpeedStateTopic, String(speed).c_str());
@@ -539,10 +547,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
     auto it = commandsToCodes.find(commandKey);
 
     if (it != commandsToCodes.end()) {
-      Log.print("Sending command: ");
-      Log.println(commandKey.c_str());
       skipNextReceive = true;
-      mySwitchSend.send(it->second.code, it->second.length);
+      sendRF(commandKey.c_str());
 
       // Update state and publish to MQTT for direct commands
       if (commandKey == "toggle-light") {

@@ -24,6 +24,7 @@ extern const char* mqttFanSpeedStateTopic;
 
 extern std::map<std::string, RfCode> commandsToCodes;
 extern RCSwitch mySwitchSend;
+extern void sendRF(const char* commandName);
 
 void handleWebRoot() {
   String html = "<!DOCTYPE html><html><head>";
@@ -247,7 +248,7 @@ void handleCommand(String command) {
   skipNextReceive = true;
 
   if (commandsToCodes.find(command.c_str()) != commandsToCodes.end()) {
-    mySwitchSend.send(commandsToCodes[command.c_str()].code, commandsToCodes[command.c_str()].length);
+    sendRF(command.c_str());
 
     // Update state
     if (command == "toggle-light") {
