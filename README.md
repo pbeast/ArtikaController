@@ -60,13 +60,16 @@ const int MQTT_SERVER_PORT = 1883;
 const char* MQTT_USERNAME = "mqtt_username";
 const char* MQTT_PASSWORD = "mqtt_password";
 
+// Optional: Override default brightness levels (default: 5)
+// #define LED_BRIGHTNESS_LEVELS 6
+
 #endif
 ```
 
 ## Usage
 
 **Important Initial State Assumptions:**
-- The controller assumes the light is **ON** with **maximum brightness (level 5)** at startup
+- The controller assumes the light is **ON** with **maximum brightness** at startup
 - The controller assumes the fan is **OFF** at startup
 - If your devices are in a different state when the controller starts, use the web interface State Sync section to correct the internal state
 - See [Troubleshooting -> Light State Out of Sync](#light-state-out-of-sync) for details
@@ -87,14 +90,14 @@ The web interface provides:
 
 The device automatically registers with Home Assistant via MQTT Discovery. You'll see two entities:
 
-1. **Artika Light** - Controllable light with brightness (1-5 levels)
+1. **Artika Light** - Controllable light with brightness (configurable levels, default 5)
 2. **Artika Fan** - Controllable fan with three speed levels (Low, Medium, High)
 
 ### MQTT Topics
 
 **Command Topics:**
 - `artika/light/set` - Light ON/OFF
-- `artika/light/brightness/set` - Brightness (1-5)
+- `artika/light/brightness/set` - Brightness (1 to LED_BRIGHTNESS_LEVELS, default 5)
 - `artika/fan/set` - Fan ON/OFF
 - `artika/fan/speed/set` - Fan speed (0-3)
 

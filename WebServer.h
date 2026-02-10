@@ -102,7 +102,7 @@ void handleWebRoot() {
   html += "<div class='status-box'><div class='status-label'>Brightness</div>";
   html += "<div class='status-value'>" + String(brightnessLevel) + "</div>";
   html += "<div class='brightness-bar'>";
-  for(int i = 1; i <= 5; i++) {
+  for(int i = 1; i <= LED_BRIGHTNESS_LEVELS; i++) {
     html += "<span" + String(i <= brightnessLevel ? " class='active'" : "") + "></span>";
   }
   html += "</div></div>";
@@ -196,7 +196,7 @@ void handleCommand(String command) {
     if (command == "toggle-light") {
       isLightOn = !isLightOn;
       pubSubClient.publish(mqttLightStateTopic, isLightOn ? "ON" : "OFF");
-    } else if (command == "brightness-up" && brightnessLevel < 5) {
+    } else if (command == "brightness-up" && brightnessLevel < LED_BRIGHTNESS_LEVELS) {
       brightnessLevel++;
       pubSubClient.publish("artika/light/brightness/state", String(brightnessLevel).c_str());
     } else if (command == "brightness-down" && brightnessLevel > 1) {

@@ -56,6 +56,9 @@ const int MQTT_SERVER_PORT = 1883;
 const char* MQTT_USERNAME = "mqtt_username";
 const char* MQTT_PASSWORD = "mqtt_password";
 
+// Optional: Override default brightness levels (default: 5)
+// #define LED_BRIGHTNESS_LEVELS 6
+
 #endif
 ```
 
@@ -73,7 +76,7 @@ const char* MQTT_PASSWORD = "mqtt_password";
 The system maintains synchronized state across three interfaces (RF remote, MQTT, web):
 
 **State Variables** (in ArtikaController.ino):
-- `isLightOn`, `brightnessLevel` (1-5)
+- `isLightOn`, `brightnessLevel` (1 to `LED_BRIGHTNESS_LEVELS`, default 5)
 - `isFanOn`, `currentFanSpeed` (0-3)
 
 **Echo Prevention**:
@@ -90,7 +93,7 @@ The system maintains synchronized state across three interfaces (RF remote, MQTT
 ### MQTT Integration
 
 **Home Assistant MQTT Discovery**:
-- Light entity: supports ON/OFF and brightness (1-5 scale)
+- Light entity: supports ON/OFF and brightness (1 to `LED_BRIGHTNESS_LEVELS` scale)
 - Fan entity: percentage-based speed control (speed_range_min: 1, speed_range_max: 3)
 - Buffer size increased to 768 bytes for discovery messages (`MQTT_MAX_PACKET_SIZE_FOR_DISCOVERY`)
 

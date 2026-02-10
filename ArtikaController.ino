@@ -18,9 +18,14 @@
 #include <map>
 #include <string>
 
+#include "config.h"
+
+#ifndef LED_BRIGHTNESS_LEVELS
+#define LED_BRIGHTNESS_LEVELS 5
+#endif
+
 #include "RfCode.h"
 #include "WebServer.h"
-#include "config.h"
 
 // Increase MQTT buffer size for discovery messages
 #define MQTT_MAX_PACKET_SIZE_FOR_DISCOVERY 768
@@ -47,7 +52,7 @@ ESP8266WebServer webServer(80);
 bool skipNextReceive = false;
 bool ignoreReceivedCodes = false;
 
-unsigned int brightnessLevel = 5;
+unsigned int brightnessLevel = LED_BRIGHTNESS_LEVELS;
 bool isLightOn = true;
 bool isFanOn = false;
 unsigned int currentFanSpeed = 0;
@@ -178,14 +183,14 @@ void publishHomeAssistantDiscovery() {
                   "\"model\":\"ESP8266 RF Controller\","
                   "\"manufacturer\":\"Custom\"}";
 
-  // Light discovery with fixed brightness levels (1-5)
+  // Light discovery with configurable brightness levels
   String lightConfig = "{\"name\":\"Artika Light\","
                        "\"unique_id\":\"" + String(deviceId) + "_light\","
                        "\"command_topic\":\"artika/light/set\","
                        "\"state_topic\":\"" + String(mqttLightStateTopic) + "\","
                        "\"brightness_command_topic\":\"artika/light/brightness/set\","
                        "\"brightness_state_topic\":\"artika/light/brightness/state\","
-                       "\"brightness_scale\":5,"
+                       "\"brightness_scale\":" + String(LED_BRIGHTNESS_LEVELS) + ","
                        "\"payload_on\":\"ON\","
                        "\"payload_off\":\"OFF\","
                        "\"device\":" + device + "}";
@@ -305,7 +310,7 @@ void handleRFCommand(unsigned long receivedCode) {
       Serial.print(" - MQTT publish: ");
       Serial.println(published ? "SUCCESS" : "FAILED");
     } else if (receivedCommand == "brightness-up") {
-      if (brightnessLevel < 5) {
+      if (brightnessLevel < LED_BRIGHTNESS_LEVELS) {
         brightnessLevel++;
         pubSubClient.publish("artika/light/brightness/state", String(brightnessLevel).c_str());
       }
@@ -440,7 +445,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   // Handle brightness commands
   else if (topicStr == "artika/light/brightness/set") {
     int newBrightness = command.toInt();
-    if (newBrightness >= 1 && newBrightness <= 5) {
+    if (newBrightness >= 1 && newBrightness <= LED_BRIGHTNESS_LEVELS) {
       // Only adjust brightness if light is ON
       if (isLightOn) {
         skipNextReceive = true;
@@ -539,7 +544,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
       if (commandKey == "toggle-light") {
         isLightOn = !isLightOn;
         pubSubClient.publish(mqttLightStateTopic, isLightOn ? "ON" : "OFF");
-      } else if (commandKey == "brightness-up" && brightnessLevel < 5) {
+      } else if (commandKey == "brightness-up" && brightnessLevel < LED_BRIGHTNESS_LEVELS) {
         brightnessLevel++;
         pubSubClient.publish("artika/light/brightness/state", String(brightnessLevel).c_str());
       } else if (commandKey == "brightness-down" && brightnessLevel > 1) {
