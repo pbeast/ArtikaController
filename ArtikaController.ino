@@ -1,9 +1,9 @@
 /*
   Example for receiving
-  
+
   https://github.com/sui77/rc-switch/
-  
-  If you want to visualize a telegram copy the raw data and 
+
+  If you want to visualize a telegram copy the raw data and
   paste it into http://test.sui.li/oszi/
 */
 
@@ -18,9 +18,18 @@
 #include <map>
 #include <string>
 
-#include "RfCode.h"
-#include "WebServer.h"
 #include "config.h"
+
+#ifndef LED_BRIGHTNESS_LEVELS
+#define LED_BRIGHTNESS_LEVELS 5
+#endif
+
+#include "RfCode.h"
+#include "LogBuffer.h"
+
+LogBuffer Log;
+
+#include "WebServer.h"
 
 // Increase MQTT buffer size for discovery messages
 #define MQTT_MAX_PACKET_SIZE_FOR_DISCOVERY 768
@@ -47,16 +56,26 @@ ESP8266WebServer webServer(80);
 bool skipNextReceive = false;
 bool ignoreReceivedCodes = false;
 
-unsigned int brightnessLevel = 5;
+unsigned int brightnessLevel = LED_BRIGHTNESS_LEVELS;
 bool isLightOn = true;
 bool isFanOn = false;
 unsigned int currentFanSpeed = 0;
 
+void sendRF(const char* commandName) {
+  auto& rfCode = commandsToCodes[commandName];
+  Log.print("RF TX: ");
+  Log.print(commandName);
+  Log.print(" (code: ");
+  Log.print(rfCode.code);
+  Log.println(")");
+  mySwitchSend.send(rfCode.code, rfCode.length);
+}
+
 void connectToWiFi() {
-  Serial.println();
-  Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(WIFI_SSID);
+  Log.println();
+  Log.println();
+  Log.print("Connecting to ");
+  Log.println(WIFI_SSID);
 
   /* Explicitly set the ESP8266 to be a WiFi-client, otherwise, it by default,
      would try to act as both a client and an access-point and could cause
@@ -66,13 +85,13 @@ void connectToWiFi() {
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    Serial.print(".");
+    Log.print(".");
   }
 
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
+  Log.println("");
+  Log.println("WiFi connected");
+  Log.println("IP address: ");
+  Log.println(WiFi.localIP());
 
   pubSubClient.setServer(MQTT_SERVER, MQTT_SERVER_PORT);
   pubSubClient.setBufferSize(MQTT_MAX_PACKET_SIZE_FOR_DISCOVERY);
@@ -99,34 +118,34 @@ void setupOTA() {
     // Disable RF receiver during OTA to prevent interference
     mySwitchReceive.disableReceive();
 
-    Serial.println("Start updating " + type);
+    Log.println("Start updating " + type);
   });
 
   ArduinoOTA.onEnd([]() {
-    Serial.println("\nEnd");
+    Log.println("\nEnd");
   });
 
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    Log.printf("Progress: %u%%\r", (progress / (total / 100)));
   });
 
   ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("Error[%u]: ", error);
+    Log.printf("Error[%u]: ", error);
     if (error == OTA_AUTH_ERROR) {
-      Serial.println("Auth Failed");
+      Log.println("Auth Failed");
     } else if (error == OTA_BEGIN_ERROR) {
-      Serial.println("Begin Failed");
+      Log.println("Begin Failed");
     } else if (error == OTA_CONNECT_ERROR) {
-      Serial.println("Connect Failed");
+      Log.println("Connect Failed");
     } else if (error == OTA_RECEIVE_ERROR) {
-      Serial.println("Receive Failed");
+      Log.println("Receive Failed");
     } else if (error == OTA_END_ERROR) {
-      Serial.println("End Failed");
+      Log.println("End Failed");
     }
   });
 
   ArduinoOTA.begin();
-  Serial.println("OTA ready");
+  Log.println("OTA ready");
 }
 
 void setup() {
@@ -134,10 +153,10 @@ void setup() {
 
   unsigned long start = millis();
   while (!Serial && (millis() - start < 5000)) {
-    
+
   }
-  Serial.println("");
-  Serial.println("Serial ready");
+  Log.println("");
+  Log.println("Serial ready");
 
   // CRITICAL: Initialize RF transmit pin FIRST to prevent spurious signals during boot
   // Must be done BEFORE WiFi connection which can take several seconds
@@ -167,8 +186,8 @@ void setup() {
   // Setup OTA updates
   setupOTA();
 
-  Serial.println("");
-  Serial.println("----------------- STARTED -----------------");
+  Log.println("");
+  Log.println("----------------- STARTED -----------------");
 }
 
 void publishHomeAssistantDiscovery() {
@@ -178,14 +197,14 @@ void publishHomeAssistantDiscovery() {
                   "\"model\":\"ESP8266 RF Controller\","
                   "\"manufacturer\":\"Custom\"}";
 
-  // Light discovery with fixed brightness levels (1-5)
+  // Light discovery with configurable brightness levels
   String lightConfig = "{\"name\":\"Artika Light\","
                        "\"unique_id\":\"" + String(deviceId) + "_light\","
                        "\"command_topic\":\"artika/light/set\","
                        "\"state_topic\":\"" + String(mqttLightStateTopic) + "\","
                        "\"brightness_command_topic\":\"artika/light/brightness/set\","
                        "\"brightness_state_topic\":\"artika/light/brightness/state\","
-                       "\"brightness_scale\":5,"
+                       "\"brightness_scale\":" + String(LED_BRIGHTNESS_LEVELS) + ","
                        "\"payload_on\":\"ON\","
                        "\"payload_off\":\"OFF\","
                        "\"device\":" + device + "}";
@@ -203,25 +222,27 @@ void publishHomeAssistantDiscovery() {
                      "\"speed_range_max\":3,"
                      "\"device\":" + device + "}";
 
-  Serial.print("Light config size: ");
-  Serial.println(lightConfig.length());
+  Log.print("Light config size: ");
+  Log.println(lightConfig.length());
   bool lightResult = pubSubClient.publish("homeassistant/light/artika_controller_light/config", lightConfig.c_str(), true);
-  Serial.print("Published light discovery: ");
-  Serial.println(lightResult ? "SUCCESS" : "FAILED");
+  Log.print("Published light discovery: ");
+  Log.println(lightResult ? "SUCCESS" : "FAILED");
 
-  Serial.print("Fan config size: ");
-  Serial.println(fanConfig.length());
+  Log.print("Fan config size: ");
+  Log.println(fanConfig.length());
   bool fanResult = pubSubClient.publish("homeassistant/fan/artika_controller_fan/config", fanConfig.c_str(), true);
-  Serial.print("Published fan discovery: ");
-  Serial.println(fanResult ? "SUCCESS" : "FAILED");
+  Log.print("Published fan discovery: ");
+  Log.println(fanResult ? "SUCCESS" : "FAILED");
 
 
 
+#ifndef SUPPRESS_STARTUP_FAN_SYNC
   // Sync fan state: turn off fan on startup (before enabling receiver)
   skipNextReceive = true;
-  Serial.println("Syncing fan state: turning fan off");
-  mySwitchSend.send(commandsToCodes["fan-off"].code, commandsToCodes["fan-off"].length);
+  Log.println("Syncing fan state: turning fan off");
+  sendRF("fan-off");
   delay(500);
+#endif
 
   if (lightResult && fanResult)
     digitalWrite(LED_BUILTIN, LOW);
@@ -245,22 +266,22 @@ void publishCurrentState() {
   // Publish fan speed (1-3, or 0 for off)
   pubSubClient.publish(mqttFanSpeedStateTopic, String(currentFanSpeed).c_str());
 
-  Serial.print("Published current state to HA - Light: ");
-  Serial.print(lightState);
-  Serial.print(", Brightness: ");
-  Serial.print(brightnessLevel);
-  Serial.print(", Fan: ");
-  Serial.print(fanState);
-  Serial.print(" (speed: ");
-  Serial.print(currentFanSpeed);
-  Serial.println(")");
+  Log.print("Published current state to HA - Light: ");
+  Log.print(lightState);
+  Log.print(", Brightness: ");
+  Log.print(brightnessLevel);
+  Log.print(", Fan: ");
+  Log.print(fanState);
+  Log.print(" (speed: ");
+  Log.print(currentFanSpeed);
+  Log.println(")");
 }
 
 void reconnectMQTT() {
   while (!pubSubClient.connected()) {
-    Serial.print("Attempting MQTT connection...");
+    Log.print("Attempting MQTT connection...");
     if (pubSubClient.connect("ArtikaControllerClient", MQTT_USERNAME, MQTT_PASSWORD)) {
-      Serial.println("connected");
+      Log.println("connected");
       pubSubClient.subscribe(mqttTopic);
       pubSubClient.subscribe("artika/light/set");
       pubSubClient.subscribe("artika/light/brightness/set");
@@ -275,9 +296,9 @@ void reconnectMQTT() {
 
 
     } else {
-      Serial.print("failed, rc=");
-      Serial.print(pubSubClient.state());
-      Serial.println(" try again in 5 seconds");
+      Log.print("failed, rc=");
+      Log.print(pubSubClient.state());
+      Log.println(" try again in 5 seconds");
       delay(5000);
     }
   }
@@ -300,12 +321,12 @@ void handleRFCommand(unsigned long receivedCode) {
       isLightOn = !isLightOn;
       String lightState = isLightOn ? "ON" : "OFF";
       bool published = pubSubClient.publish(mqttLightStateTopic, lightState.c_str());
-      Serial.print("RF Remote: Light toggled to ");
-      Serial.print(lightState);
-      Serial.print(" - MQTT publish: ");
-      Serial.println(published ? "SUCCESS" : "FAILED");
+      Log.print("RF Remote: Light toggled to ");
+      Log.print(lightState);
+      Log.print(" - MQTT publish: ");
+      Log.println(published ? "SUCCESS" : "FAILED");
     } else if (receivedCommand == "brightness-up") {
-      if (brightnessLevel < 5) {
+      if (brightnessLevel < LED_BRIGHTNESS_LEVELS) {
         brightnessLevel++;
         pubSubClient.publish("artika/light/brightness/state", String(brightnessLevel).c_str());
       }
@@ -319,25 +340,25 @@ void handleRFCommand(unsigned long receivedCode) {
       currentFanSpeed = 0;
       pubSubClient.publish(mqttFanStateTopic, "OFF");
       pubSubClient.publish(mqttFanSpeedStateTopic, "0");
-      Serial.println("Published fan state: OFF (speed: 0)");
+      Log.println("Published fan state: OFF (speed: 0)");
     } else if (receivedCommand == "fan-low") {
       isFanOn = true;
       currentFanSpeed = 1;
       pubSubClient.publish(mqttFanStateTopic, "ON");
       pubSubClient.publish(mqttFanSpeedStateTopic, "1");
-      Serial.println("Published fan state: ON (speed: 1)");
+      Log.println("Published fan state: ON (speed: 1)");
     } else if (receivedCommand == "fan-medium") {
       isFanOn = true;
       currentFanSpeed = 2;
       pubSubClient.publish(mqttFanStateTopic, "ON");
       pubSubClient.publish(mqttFanSpeedStateTopic, "2");
-      Serial.println("Published fan state: ON (speed: 2)");
+      Log.println("Published fan state: ON (speed: 2)");
     } else if (receivedCommand == "fan-high") {
       isFanOn = true;
       currentFanSpeed = 3;
       pubSubClient.publish(mqttFanStateTopic, "ON");
       pubSubClient.publish(mqttFanSpeedStateTopic, "3");
-      Serial.println("Published fan state: ON (speed: 3)");
+      Log.println("Published fan state: ON (speed: 3)");
     }
   }
 }
@@ -356,15 +377,15 @@ void processRFReceive(unsigned long& lastReceivedCode, unsigned long& lastReceiv
 
   // Debounce: ignore if same code received within 500ms
   if (receivedCode == lastReceivedCode && (currentTime - lastReceivedTime) < 400) {
-    Serial.println("Ignored duplicate RF command (debounce)");
+    Log.println("Ignored duplicate RF command (debounce)");
     return;
   }
 
   lastReceivedCode = receivedCode;
   lastReceivedTime = currentTime;
 
-  Serial.print("Received: ");
-  Serial.println(receivedCode);
+  Log.print("Received: ");
+  Log.println(receivedCode);
 
   handleRFCommand(receivedCode);
 }
@@ -388,14 +409,12 @@ void handleButtonPress() {
       if (buttonState == HIGH) {
         skipNextReceive = true;
 
-        Serial.println("Sending light toggle");
-        RfCode toggleCode = commandsToCodes["toggle-light"];
-        mySwitchSend.send(toggleCode.code, toggleCode.length);
+        sendRF("toggle-light");
 
         isLightOn = !isLightOn;
         String lightState = isLightOn ? "ON" : "OFF";
-        Serial.print("Publishing light state: ");
-        Serial.println(lightState);
+        Log.print("Publishing light state: ");
+        Log.println(lightState);
         pubSubClient.publish(mqttLightStateTopic, lightState.c_str());
       }
     }
@@ -405,15 +424,15 @@ void handleButtonPress() {
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
+  Log.print("Message arrived [");
+  Log.print(topic);
+  Log.print("] ");
 
   String command = "";
   for (int i = 0; i < length; i++) {
     command += (char)payload[i];
   }
-  Serial.println(command);
+  Log.println(command);
 
   String topicStr = String(topic);
 
@@ -424,23 +443,23 @@ void callback(char* topic, byte* payload, unsigned int length) {
     // Only toggle if the requested state is different from current state
     if (requestedState != isLightOn) {
       skipNextReceive = true;
-      mySwitchSend.send(commandsToCodes["toggle-light"].code, commandsToCodes["toggle-light"].length);
+      sendRF("toggle-light");
       isLightOn = requestedState;
 
       // Publish state back to MQTT
       pubSubClient.publish(mqttLightStateTopic, command.c_str());
 
-      Serial.print("Light toggled to: ");
-      Serial.println(command);
+      Log.print("Light toggled to: ");
+      Log.println(command);
     } else {
-      Serial.print("Light already in requested state: ");
-      Serial.println(command);
+      Log.print("Light already in requested state: ");
+      Log.println(command);
     }
   }
   // Handle brightness commands
   else if (topicStr == "artika/light/brightness/set") {
     int newBrightness = command.toInt();
-    if (newBrightness >= 1 && newBrightness <= 5) {
+    if (newBrightness >= 1 && newBrightness <= LED_BRIGHTNESS_LEVELS) {
       // Only adjust brightness if light is ON
       if (isLightOn) {
         skipNextReceive = true;
@@ -448,16 +467,16 @@ void callback(char* topic, byte* payload, unsigned int length) {
         const char* brightCmd = (diff > 0) ? "brightness-up" : "brightness-down";
 
         for (int i = 0; i < abs(diff); i++) {
-          mySwitchSend.send(commandsToCodes[brightCmd].code, commandsToCodes[brightCmd].length);
+          sendRF(brightCmd);
           delay(300);
         }
         brightnessLevel = newBrightness;
 
         pubSubClient.publish("artika/light/brightness/state", String(brightnessLevel).c_str());
-        Serial.print("Brightness set to: ");
-        Serial.println(brightnessLevel);
+        Log.print("Brightness set to: ");
+        Log.println(brightnessLevel);
       } else {
-        Serial.println("Brightness change ignored - light is OFF");
+        Log.println("Brightness change ignored - light is OFF");
       }
     }
   }
@@ -465,20 +484,20 @@ void callback(char* topic, byte* payload, unsigned int length) {
   else if (topicStr == "artika/fan/set") {
     if (command == "ON") {
       skipNextReceive = true;
-      mySwitchSend.send(commandsToCodes["fan-low"].code, commandsToCodes["fan-low"].length);
+      sendRF("fan-low");
       isFanOn = true;
       currentFanSpeed = 1;
       pubSubClient.publish(mqttFanStateTopic, "ON");
       pubSubClient.publish(mqttFanSpeedStateTopic, "1");
-      Serial.println("Fan turned ON (speed: 1)");
+      Log.println("Fan turned ON (speed: 1)");
     } else if (command == "OFF") {
       skipNextReceive = true;
-      mySwitchSend.send(commandsToCodes["fan-off"].code, commandsToCodes["fan-off"].length);
+      sendRF("fan-off");
       isFanOn = false;
       currentFanSpeed = 0;
       pubSubClient.publish(mqttFanStateTopic, "OFF");
       pubSubClient.publish(mqttFanSpeedStateTopic, "0");
-      Serial.println("Fan turned OFF (speed: 0)");
+      Log.println("Fan turned OFF (speed: 0)");
     }
   }
   // Handle fan speed commands
@@ -512,15 +531,15 @@ void callback(char* topic, byte* payload, unsigned int length) {
       }
 
       if (speedCmd != nullptr) {
-        mySwitchSend.send(commandsToCodes[speedCmd].code, commandsToCodes[speedCmd].length);
+        sendRF(speedCmd);
         String fanState = isFanOn ? "ON" : "OFF";
         pubSubClient.publish(mqttFanStateTopic, fanState.c_str());
         pubSubClient.publish(mqttFanSpeedStateTopic, String(speed).c_str());
-        Serial.print("Fan speed set to: ");
-        Serial.print(speed);
-        Serial.print(" (");
-        Serial.print(fanState);
-        Serial.println(")");
+        Log.print("Fan speed set to: ");
+        Log.print(speed);
+        Log.print(" (");
+        Log.print(fanState);
+        Log.println(")");
       }
     }
   }
@@ -530,16 +549,14 @@ void callback(char* topic, byte* payload, unsigned int length) {
     auto it = commandsToCodes.find(commandKey);
 
     if (it != commandsToCodes.end()) {
-      Serial.print("Sending command: ");
-      Serial.println(commandKey.c_str());
       skipNextReceive = true;
-      mySwitchSend.send(it->second.code, it->second.length);
+      sendRF(commandKey.c_str());
 
       // Update state and publish to MQTT for direct commands
       if (commandKey == "toggle-light") {
         isLightOn = !isLightOn;
         pubSubClient.publish(mqttLightStateTopic, isLightOn ? "ON" : "OFF");
-      } else if (commandKey == "brightness-up" && brightnessLevel < 5) {
+      } else if (commandKey == "brightness-up" && brightnessLevel < LED_BRIGHTNESS_LEVELS) {
         brightnessLevel++;
         pubSubClient.publish("artika/light/brightness/state", String(brightnessLevel).c_str());
       } else if (commandKey == "brightness-down" && brightnessLevel > 1) {
@@ -567,8 +584,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
         pubSubClient.publish(mqttFanSpeedStateTopic, "3");
       }
     } else {
-      Serial.print("Unknown command: ");
-      Serial.println(commandKey.c_str());
+      Log.print("Unknown command: ");
+      Log.println(commandKey.c_str());
     }
   }
 }
@@ -593,7 +610,7 @@ void loop() {
       if (!skipNextReceive) {
         processRFReceive(lastReceivedCode, lastReceivedTime);
       } else {
-        Serial.println("Skipped RF receive (echo prevention)");
+        Log.println("Skipped RF receive (echo prevention)");
         skipNextReceive = false;
         mySwitchReceive.resetAvailable();
       }

@@ -56,6 +56,25 @@ const int MQTT_SERVER_PORT = 1883;
 const char* MQTT_USERNAME = "mqtt_username";
 const char* MQTT_PASSWORD = "mqtt_password";
 
+// OTA Update Password
+const char* OTA_PASSWORD = "your_ota_password";
+
+// Optional: Override default brightness levels (default: 5)
+// #define LED_BRIGHTNESS_LEVELS 6
+
+// Optional: Suppress the fan-off RF command sent on startup/MQTT reconnect
+// Enable this if your fan uses a toggle for on/off instead of a dedicated off command
+// #define SUPPRESS_STARTUP_FAN_SYNC
+
+// Optional: Override RF codes for your specific remote
+// #define RF_CODE_TOGGLE_LIGHT 14432773
+// #define RF_CODE_FAN_OFF 14432816
+// #define RF_CODE_FAN_LOW 14432819
+// #define RF_CODE_FAN_MEDIUM 14432794
+// #define RF_CODE_FAN_HIGH 14432818
+// #define RF_CODE_BRIGHTNESS_UP 14432793
+// #define RF_CODE_BRIGHTNESS_DOWN 14432821
+
 #endif
 ```
 
@@ -65,7 +84,9 @@ const char* MQTT_PASSWORD = "mqtt_password";
 
 - **ArtikaController.ino**: Main sketch with setup(), loop(), MQTT callbacks, and state management
 - **RfCode.h**: RF code definitions and command mapping
-- **WebServer.h**: HTTP server handlers and HTML interface
+- **WebServer.h**: HTTP server handlers and HTML interface (AJAX-based, no page refreshes)
+- **LogBuffer.h**: Circular log buffer (`LogBuffer` class) that tees output to both Serial and an in-memory ring buffer for the web-based system monitor
+- **output.ino**: RF signal debug output helpers (decimal, binary, tri-state, raw data)
 - **config.h**: User configuration (gitignored)
 
 ### State Management
@@ -73,7 +94,7 @@ const char* MQTT_PASSWORD = "mqtt_password";
 The system maintains synchronized state across three interfaces (RF remote, MQTT, web):
 
 **State Variables** (in ArtikaController.ino):
-- `isLightOn`, `brightnessLevel` (1-5)
+- `isLightOn`, `brightnessLevel` (1 to `LED_BRIGHTNESS_LEVELS`, default 5)
 - `isFanOn`, `currentFanSpeed` (0-3)
 
 **Echo Prevention**:
@@ -90,7 +111,7 @@ The system maintains synchronized state across three interfaces (RF remote, MQTT
 ### MQTT Integration
 
 **Home Assistant MQTT Discovery**:
-- Light entity: supports ON/OFF and brightness (1-5 scale)
+- Light entity: supports ON/OFF and brightness (1 to `LED_BRIGHTNESS_LEVELS` scale)
 - Fan entity: percentage-based speed control (speed_range_min: 1, speed_range_max: 3)
 - Buffer size increased to 768 bytes for discovery messages (`MQTT_MAX_PACKET_SIZE_FOR_DISCOVERY`)
 
@@ -104,7 +125,6 @@ The system maintains synchronized state across three interfaces (RF remote, MQTT
 **RfCode struct** (RfCode.h):
 ```cpp
 struct RfCode {
-  const char* sCodeWord;  // Binary representation (currently unused)
   unsigned long code;     // Decimal code value
   unsigned int length;    // Bit length (24 for all Artika commands)
 };
@@ -112,14 +132,18 @@ struct RfCode {
 
 **Command mapping**: `std::map<std::string, RfCode> commandsToCodes` allows lookup by command name or reverse lookup by code value.
 
+**RF code overrides**: Default codes are defined as `#ifndef`-guarded `#define`s in RfCode.h. To use codes from a different remote, override them in `config.h` (e.g., `#define RF_CODE_TOGGLE_LIGHT 4381957`).
+
 **Adding new RF codes**:
 1. Capture codes using Serial Monitor (uncomment `output()` call in `processRFReceive`)
-2. Add to `fillCommandsMap()` in RfCode.h
+2. Add overrides to `config.h`, or update defaults in `fillCommandsMap()` in RfCode.h
 3. Add corresponding state handling in `handleRFCommand()` and MQTT callback
 
-### Web Interface State Synchronization
+### Web Interface
 
-The web interface (`/sync/light/on`, `/sync/light/off`) updates internal state WITHOUT sending RF commands. This is critical for resolving desync when:
+The web UI uses AJAX for all controls (no page refreshes) and polls `/api/state` every 5 seconds for live state updates. A collapsible system monitor panel streams logs from the `LogBuffer` via `/api/logs?since=<id>`.
+
+**State Synchronization**: Endpoints (`/sync/light/on`, `/sync/light/off`, `/sync/fan/off`, `/sync/fan/low`, `/sync/fan/medium`, `/sync/fan/high`) update internal state WITHOUT sending RF commands. This is critical for resolving desync when:
 - Physical remote was used while controller was offline
 - RF transmission was missed or interference occurred
 - Light state toggled an odd number of times (toggle-based control)
@@ -139,12 +163,13 @@ if (requestedState != isLightOn) {
 ### Loop Architecture
 
 Main `loop()` handles:
-1. MQTT connection maintenance (`reconnectMQTT()`)
-2. MQTT message processing (`pubSubClient.loop()`)
-3. Web server requests (`webServer.handleClient()`)
-4. mDNS updates (`MDNS.update()`)
-5. RF signal reception with echo prevention logic
-6. Physical button monitoring
+1. OTA update checks (`ArduinoOTA.handle()`)
+2. MQTT connection maintenance (`reconnectMQTT()`)
+3. MQTT message processing (`pubSubClient.loop()`)
+4. Web server requests (`webServer.handleClient()`)
+5. mDNS updates (`MDNS.update()`)
+6. RF signal reception with echo prevention logic
+7. Physical button monitoring
 
 **State variables** are static within `loop()` for persistence (e.g., `lastReceivedCode`, `lastReceivedTime`).
 
@@ -169,4 +194,5 @@ If codes need adjustment for different Artika models:
 - **MQTT buffer size**: Discovery messages are large; default PubSubClient buffer (256 bytes) is insufficient
 - **Receiver timing**: Must enable receiver AFTER sending initial sync command to prevent echo
 - **String-based MQTT server**: Uses `const char*` not `IPAddress` to support both IPs and hostnames
-- **Global objects**: `mySwitchReceive`, `mySwitchSend`, `pubSubClient`, `webServer` are global for access across files
+- **Global objects**: `mySwitchReceive`, `mySwitchSend`, `pubSubClient`, `webServer`, `Log` are global for access across files
+- **Logging**: All logging goes through `Log` (a `LogBuffer` instance) instead of `Serial` directly. `LogBuffer` extends `Print`, tees to Serial, and stores lines in a circular buffer (250 lines) for the web system monitor

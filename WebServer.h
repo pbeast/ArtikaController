@@ -6,9 +6,11 @@
 #include <map>
 #include <string>
 #include "RfCode.h"
+#include "LogBuffer.h"
 
 extern ESP8266WebServer webServer;
 extern PubSubClient pubSubClient;
+extern LogBuffer Log;
 
 extern unsigned int brightnessLevel;
 extern bool isLightOn;
@@ -22,6 +24,26 @@ extern const char* mqttFanSpeedStateTopic;
 
 extern std::map<std::string, RfCode> commandsToCodes;
 extern RCSwitch mySwitchSend;
+extern void sendRF(const char* commandName);
+
+String buildStateJson() {
+  String json = "{\"light\":";
+  json += isLightOn ? "true" : "false";
+  json += ",\"brightness\":";
+  json += String(brightnessLevel);
+  json += ",\"fan\":";
+  json += isFanOn ? "true" : "false";
+  json += ",\"fanSpeed\":";
+  json += String(currentFanSpeed);
+  json += ",\"brightnessLevels\":";
+  json += String(LED_BRIGHTNESS_LEVELS);
+  json += "}";
+  return json;
+}
+
+void handleStateAPI() {
+  webServer.send(200, "application/json", buildStateJson());
+}
 
 void handleWebRoot() {
   String html = "<!DOCTYPE html><html><head>";
@@ -83,6 +105,18 @@ void handleWebRoot() {
   html += ".footer-line { font-size: 11px; color: #666; letter-spacing: 2px; margin: 4px 0; }";
   html += ".blink { animation: blink 1.5s infinite; }";
   html += "@media (max-width: 480px) { .controls, .controls.triple, .controls.quad { grid-template-columns: 1fr; } .status-grid { grid-template-columns: 1fr; } h1 { font-size: 36px; } }";
+
+  // Monitor panel styles
+  html += ".monitor-toggle { cursor: pointer; user-select: none; }";
+  html += ".monitor-arrow { display: inline-block; transition: transform 0.2s; font-size: 12px; margin-right: 6px; }";
+  html += ".monitor-arrow.open { transform: rotate(90deg); }";
+  html += "#monitor-body { display: none; }";
+  html += "#monitor-log { background: #000; border: 2px solid #222; height: 320px; overflow-y: auto; padding: 8px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; }";
+  html += "#monitor-log .log-line { color: #00ff41; line-height: 1.6; word-break: break-all; }";
+  html += ".monitor-controls { display: flex; align-items: center; gap: 16px; margin-top: 12px; }";
+  html += ".monitor-controls label { font-size: 11px; color: #666; letter-spacing: 1px; cursor: pointer; display: flex; align-items: center; gap: 6px; }";
+  html += ".monitor-controls input[type=checkbox] { accent-color: #00ff41; }";
+
   html += "</style></head><body>";
   html += "<div class='container'>";
 
@@ -97,21 +131,21 @@ void handleWebRoot() {
   html += "<div class='status-grid'>";
 
   html += "<div class='status-box'><div class='status-label'>Light Status</div>";
-  html += "<div class='status-value " + String(isLightOn ? "on" : "off") + "'>" + String(isLightOn ? "ON" : "OFF") + "</div></div>";
+  html += "<div id='light-status' class='status-value " + String(isLightOn ? "on" : "off") + "'>" + String(isLightOn ? "ON" : "OFF") + "</div></div>";
 
   html += "<div class='status-box'><div class='status-label'>Brightness</div>";
-  html += "<div class='status-value'>" + String(brightnessLevel) + "</div>";
-  html += "<div class='brightness-bar'>";
-  for(int i = 1; i <= 5; i++) {
+  html += "<div class='status-value' id='brightness-value'>" + String(brightnessLevel) + "</div>";
+  html += "<div class='brightness-bar' id='brightness-bar'>";
+  for(int i = 1; i <= LED_BRIGHTNESS_LEVELS; i++) {
     html += "<span" + String(i <= brightnessLevel ? " class='active'" : "") + "></span>";
   }
   html += "</div></div>";
 
   html += "<div class='status-box'><div class='status-label'>Fan Status</div>";
-  html += "<div class='status-value " + String(isFanOn ? "on" : "off") + "'>" + String(isFanOn ? "ON" : "OFF") + "</div></div>";
+  html += "<div id='fan-status' class='status-value " + String(isFanOn ? "on" : "off") + "'>" + String(isFanOn ? "ON" : "OFF") + "</div></div>";
 
   html += "<div class='status-box'><div class='status-label'>Fan Speed</div>";
-  html += "<div class='status-value'>";
+  html += "<div class='status-value' id='fan-speed-value'>";
   switch(currentFanSpeed) {
     case 0: html += "0"; break;
     case 1: html += "1"; break;
@@ -119,7 +153,7 @@ void handleWebRoot() {
     case 3: html += "3"; break;
   }
   html += "</div>";
-  html += "<div class='fan-visual'>";
+  html += "<div class='fan-visual' id='fan-visual'>";
   for(int i = 1; i <= 3; i++) {
     html += "<div class='fan-blade" + String(i <= currentFanSpeed ? " active" : "") + "'></div>";
   }
@@ -131,19 +165,19 @@ void handleWebRoot() {
   html += "<div class='panel-header'><div class='panel-title'>Light Control</div></div>";
   html += "<div class='panel-body'>";
   html += "<div class='controls triple'>";
-  html += "<button class='primary' onclick=\"location.href='/light/toggle'\">TOGGLE</button>";
-  html += "<button onclick=\"location.href='/brightness/up'\">BRIGHT +</button>";
-  html += "<button onclick=\"location.href='/brightness/down'\">BRIGHT –</button>";
+  html += "<button class='primary' onclick=\"sendCmd('/light/toggle')\">TOGGLE</button>";
+  html += "<button onclick=\"sendCmd('/brightness/up')\">BRIGHT +</button>";
+  html += "<button onclick=\"sendCmd('/brightness/down')\">BRIGHT –</button>";
   html += "</div></div></div>";
 
   html += "<div class='panel'>";
   html += "<div class='panel-header'><div class='panel-title'>Fan Control</div></div>";
   html += "<div class='panel-body'>";
   html += "<div class='controls quad'>";
-  html += "<button class='danger' onclick=\"location.href='/fan/off'\">OFF</button>";
-  html += "<button onclick=\"location.href='/fan/low'\">LOW</button>";
-  html += "<button onclick=\"location.href='/fan/medium'\">MEDIUM</button>";
-  html += "<button onclick=\"location.href='/fan/high'\">HIGH</button>";
+  html += "<button class='danger' onclick=\"sendCmd('/fan/off')\">OFF</button>";
+  html += "<button onclick=\"sendCmd('/fan/low')\">LOW</button>";
+  html += "<button onclick=\"sendCmd('/fan/medium')\">MEDIUM</button>";
+  html += "<button onclick=\"sendCmd('/fan/high')\">HIGH</button>";
   html += "</div></div></div>";
 
   html += "<div class='panel'>";
@@ -153,21 +187,102 @@ void handleWebRoot() {
   html += "<p>⚠ MANUAL OVERRIDE: USE IF STATE DESYNCHRONIZED</p>";
   html += "<p style='margin-top:8px;'><strong>Light State:</strong></p>";
   html += "<div class='controls'>";
-  html += "<button class='primary' onclick=\"location.href='/sync/light/on'\">Light ON</button>";
-  html += "<button class='warning' onclick=\"location.href='/sync/light/off'\">Light OFF</button>";
+  html += "<button class='primary' onclick=\"sendCmd('/sync/light/on')\">Light ON</button>";
+  html += "<button class='warning' onclick=\"sendCmd('/sync/light/off')\">Light OFF</button>";
   html += "</div>";
   html += "<p style='margin-top:16px;'><strong>Fan State:</strong></p>";
   html += "<div class='controls quad'>";
-  html += "<button class='warning' onclick=\"location.href='/sync/fan/off'\">Fan OFF</button>";
-  html += "<button class='primary' onclick=\"location.href='/sync/fan/low'\">Fan LOW</button>";
-  html += "<button class='primary' onclick=\"location.href='/sync/fan/medium'\">Fan MED</button>";
-  html += "<button class='primary' onclick=\"location.href='/sync/fan/high'\">Fan HIGH</button>";
+  html += "<button class='warning' onclick=\"sendCmd('/sync/fan/off')\">Fan OFF</button>";
+  html += "<button class='primary' onclick=\"sendCmd('/sync/fan/low')\">Fan LOW</button>";
+  html += "<button class='primary' onclick=\"sendCmd('/sync/fan/medium')\">Fan MED</button>";
+  html += "<button class='primary' onclick=\"sendCmd('/sync/fan/high')\">Fan HIGH</button>";
   html += "</div></div></div></div>";
+
+  // System Monitor panel
+  html += "<div class='panel' style='margin-top:24px;'>";
+  html += "<div class='panel-header monitor-toggle' onclick='toggleMonitor()'>";
+  html += "<div class='panel-title'><span class='monitor-arrow' id='mon-arrow'>&#9654;</span>SYSTEM MONITOR</div>";
+  html += "<div style='font-size:10px;color:#666;' id='mon-status'></div>";
+  html += "</div>";
+  html += "<div id='monitor-body' class='panel-body' style='padding:16px;'>";
+  html += "<div id='monitor-log'></div>";
+  html += "<div class='monitor-controls'>";
+  html += "<label><input type='checkbox' id='mon-follow' checked> FOLLOW</label>";
+  html += "</div>";
+  html += "</div></div>";
+
+  // JavaScript: AJAX commands, state updates, monitor, polling
+  html += "<script>";
+
+  // updateUI function
+  html += "function updateUI(s){";
+  html += "var ls=document.getElementById('light-status');";
+  html += "ls.textContent=s.light?'ON':'OFF';";
+  html += "ls.className='status-value '+(s.light?'on':'off');";
+  html += "document.getElementById('brightness-value').textContent=s.brightness;";
+  html += "var bar=document.getElementById('brightness-bar');";
+  html += "var spans=bar.getElementsByTagName('span');";
+  html += "for(var i=0;i<spans.length;i++){";
+  html += "spans[i].className=i<s.brightness?'active':'';";
+  html += "}";
+  html += "var fs=document.getElementById('fan-status');";
+  html += "fs.textContent=s.fan?'ON':'OFF';";
+  html += "fs.className='status-value '+(s.fan?'on':'off');";
+  html += "document.getElementById('fan-speed-value').textContent=s.fanSpeed;";
+  html += "var fv=document.getElementById('fan-visual');";
+  html += "var blades=fv.getElementsByClassName('fan-blade');";
+  html += "for(var i=0;i<blades.length;i++){";
+  html += "blades[i].className='fan-blade'+(i<s.fanSpeed?' active':'');";
+  html += "}";
+  html += "}";
+
+  // sendCmd function
+  html += "function sendCmd(path){";
+  html += "fetch(path).then(function(r){return r.json();}).then(function(s){";
+  html += "updateUI(s);";
+  html += "}).catch(function(e){console.log('cmd error',e);});";
+  html += "}";
+
+  // State polling (every 5 seconds)
+  html += "setInterval(function(){";
+  html += "fetch('/api/state').then(function(r){return r.json();}).then(function(s){";
+  html += "updateUI(s);";
+  html += "}).catch(function(){});";
+  html += "},5000);";
+
+  // Monitor variables and functions
+  html += "var monOpen=false,sinceId=0,pollTimer=null;";
+  html += "function toggleMonitor(){";
+  html += "monOpen=!monOpen;";
+  html += "document.getElementById('monitor-body').style.display=monOpen?'block':'none';";
+  html += "document.getElementById('mon-arrow').classList.toggle('open',monOpen);";
+  html += "if(monOpen){poll();pollTimer=setInterval(poll,2000);}";
+  html += "else{if(pollTimer){clearInterval(pollTimer);pollTimer=null;}document.getElementById('mon-status').textContent='';}";
+  html += "}";
+  html += "function poll(){";
+  html += "fetch('/api/logs?since='+sinceId).then(function(r){return r.json();}).then(function(d){";
+  html += "sinceId=d.n;";
+  html += "var el=document.getElementById('monitor-log');";
+  html += "var lines=d.l;";
+  html += "for(var i=0;i<lines.length;i++){";
+  html += "var div=document.createElement('div');";
+  html += "div.className='log-line';";
+  html += "div.textContent=lines[i];";
+  html += "el.appendChild(div);";
+  html += "}";
+  html += "while(el.children.length>250){el.removeChild(el.firstChild);}";
+  html += "if(document.getElementById('mon-follow').checked&&lines.length>0){el.scrollTop=el.scrollHeight;}";
+  html += "document.getElementById('mon-status').textContent='LIVE';";
+  html += "}).catch(function(){document.getElementById('mon-status').textContent='ERR';});";
+  html += "}";
+  html += "</script>";
 
   html += "<div class='footer'>";
   html += "<div class='footer-line'>NETWORK: " + WiFi.localIP().toString() + "</div>";
   html += "<div class='footer-line'>HOSTNAME: artika-fan.local</div>";
-  html += "</div></div></body></html>";
+  html += "</div>";
+
+  html += "</div></body></html>";
 
   webServer.send(200, "text/html", html);
 }
@@ -179,9 +294,8 @@ void handleCommand(String command) {
 
   // Debounce: ignore duplicate commands within 500ms
   if (command == lastCommand && (currentTime - lastCommandTime) < 500) {
-    Serial.println("Ignored duplicate web command (debounce)");
-    webServer.sendHeader("Location", "/");
-    webServer.send(303);
+    Log.println("Ignored duplicate web command (debounce)");
+    webServer.send(200, "application/json", buildStateJson());
     return;
   }
 
@@ -190,13 +304,13 @@ void handleCommand(String command) {
   skipNextReceive = true;
 
   if (commandsToCodes.find(command.c_str()) != commandsToCodes.end()) {
-    mySwitchSend.send(commandsToCodes[command.c_str()].code, commandsToCodes[command.c_str()].length);
+    sendRF(command.c_str());
 
     // Update state
     if (command == "toggle-light") {
       isLightOn = !isLightOn;
       pubSubClient.publish(mqttLightStateTopic, isLightOn ? "ON" : "OFF");
-    } else if (command == "brightness-up" && brightnessLevel < 5) {
+    } else if (command == "brightness-up" && brightnessLevel < LED_BRIGHTNESS_LEVELS) {
       brightnessLevel++;
       pubSubClient.publish("artika/light/brightness/state", String(brightnessLevel).c_str());
     } else if (command == "brightness-down" && brightnessLevel > 1) {
@@ -225,8 +339,16 @@ void handleCommand(String command) {
     }
   }
 
-  webServer.sendHeader("Location", "/");
-  webServer.send(303);
+  webServer.send(200, "application/json", buildStateJson());
+}
+
+void handleLogsAPI() {
+  unsigned long since = 0;
+  if (webServer.hasArg("since")) {
+    since = strtoul(webServer.arg("since").c_str(), nullptr, 10);
+  }
+  String json = Log.getLogsSince(since);
+  webServer.send(200, "application/json", json);
 }
 
 void setupWebServer() {
@@ -241,18 +363,19 @@ void setupWebServer() {
   webServer.on("/fan/medium", []() { handleCommand("fan-medium"); });
   webServer.on("/fan/high", []() { handleCommand("fan-high"); });
 
+  webServer.on("/api/state", handleStateAPI);
+  webServer.on("/api/logs", handleLogsAPI);
+
   webServer.on("/sync/light/on", []() {
     isLightOn = true;
     pubSubClient.publish(mqttLightStateTopic, "ON");
-    webServer.sendHeader("Location", "/");
-    webServer.send(303);
+    webServer.send(200, "application/json", buildStateJson());
   });
 
   webServer.on("/sync/light/off", []() {
     isLightOn = false;
     pubSubClient.publish(mqttLightStateTopic, "OFF");
-    webServer.sendHeader("Location", "/");
-    webServer.send(303);
+    webServer.send(200, "application/json", buildStateJson());
   });
 
   webServer.on("/sync/fan/off", []() {
@@ -260,8 +383,7 @@ void setupWebServer() {
     currentFanSpeed = 0;
     pubSubClient.publish(mqttFanStateTopic, "OFF");
     pubSubClient.publish(mqttFanSpeedStateTopic, "0");
-    webServer.sendHeader("Location", "/");
-    webServer.send(303);
+    webServer.send(200, "application/json", buildStateJson());
   });
 
   webServer.on("/sync/fan/low", []() {
@@ -269,8 +391,7 @@ void setupWebServer() {
     currentFanSpeed = 1;
     pubSubClient.publish(mqttFanStateTopic, "ON");
     pubSubClient.publish(mqttFanSpeedStateTopic, "1");
-    webServer.sendHeader("Location", "/");
-    webServer.send(303);
+    webServer.send(200, "application/json", buildStateJson());
   });
 
   webServer.on("/sync/fan/medium", []() {
@@ -278,8 +399,7 @@ void setupWebServer() {
     currentFanSpeed = 2;
     pubSubClient.publish(mqttFanStateTopic, "ON");
     pubSubClient.publish(mqttFanSpeedStateTopic, "2");
-    webServer.sendHeader("Location", "/");
-    webServer.send(303);
+    webServer.send(200, "application/json", buildStateJson());
   });
 
   webServer.on("/sync/fan/high", []() {
@@ -287,20 +407,19 @@ void setupWebServer() {
     currentFanSpeed = 3;
     pubSubClient.publish(mqttFanStateTopic, "ON");
     pubSubClient.publish(mqttFanSpeedStateTopic, "3");
-    webServer.sendHeader("Location", "/");
-    webServer.send(303);
+    webServer.send(200, "application/json", buildStateJson());
   });
 
   webServer.begin();
-  Serial.println("Web server started");
+  Log.println("Web server started");
 }
 
 void setupMDNS() {
   if (MDNS.begin("artika-fan")) {
-    Serial.println("mDNS responder started: artika-fan.local");
+    Log.println("mDNS responder started: artika-fan.local");
     MDNS.addService("http", "tcp", 80);
   } else {
-    Serial.println("Error starting mDNS");
+    Log.println("Error starting mDNS");
   }
 }
 

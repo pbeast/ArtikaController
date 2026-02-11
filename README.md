@@ -10,7 +10,8 @@ ESP8266-based RF to MQTT bridge for controlling Artika ceiling fan with light vi
 
 - **RF Control**: Receives and transmits 433MHz RF signals to control Artika fan
 - **MQTT Integration**: Full Home Assistant MQTT Discovery support
-- **Web Interface**: Built-in web UI for manual control and state synchronization
+- **Web Interface**: Built-in web UI with AJAX controls, live state polling, and state synchronization
+- **System Monitor**: Collapsible live log viewer in the web interface for real-time debugging
 - **Physical Button**: Optional button for light toggle control
 - **State Synchronization**: Maintains state across RF remote, MQTT, and web interfaces
 
@@ -60,16 +61,35 @@ const int MQTT_SERVER_PORT = 1883;
 const char* MQTT_USERNAME = "mqtt_username";
 const char* MQTT_PASSWORD = "mqtt_password";
 
+// OTA Update Password
+const char* OTA_PASSWORD = "your_ota_password";
+
+// Optional: Override default brightness levels (default: 5)
+// #define LED_BRIGHTNESS_LEVELS 6
+
+// Optional: Suppress the fan-off RF command sent on startup/MQTT reconnect
+// Enable this if your fan uses a toggle for on/off instead of a dedicated off command
+// #define SUPPRESS_STARTUP_FAN_SYNC
+
+// Optional: Override RF codes for your specific remote
+// #define RF_CODE_TOGGLE_LIGHT 14432773
+// #define RF_CODE_FAN_OFF 14432816
+// #define RF_CODE_FAN_LOW 14432819
+// #define RF_CODE_FAN_MEDIUM 14432794
+// #define RF_CODE_FAN_HIGH 14432818
+// #define RF_CODE_BRIGHTNESS_UP 14432793
+// #define RF_CODE_BRIGHTNESS_DOWN 14432821
+
 #endif
 ```
 
 ## Usage
 
 **Important Initial State Assumptions:**
-- The controller assumes the light is **ON** with **maximum brightness (level 5)** at startup
+- The controller assumes the light is **ON** with **maximum brightness** at startup
 - The controller assumes the fan is **OFF** at startup
 - If your devices are in a different state when the controller starts, use the web interface State Sync section to correct the internal state
-- See [Troubleshooting -> Light State Out of Sync](#light-state-out-of-sync) for details
+- See [Troubleshooting -> State Out of Sync](#state-out-of-sync) for details
 
 ### Web Interface
 
@@ -78,23 +98,24 @@ Access the web interface at:
 - `http://<ESP8266_IP_ADDRESS>`
 
 The web interface provides:
-- Real-time device status display
-- Light and fan control buttons
+- Real-time device status display with live state polling
+- Light and fan control buttons (AJAX-based, no page refreshes)
 - Brightness adjustment
-- State synchronization controls
+- State synchronization controls for both light and fan
+- Collapsible system monitor with live log streaming
 
 ### Home Assistant Integration
 
 The device automatically registers with Home Assistant via MQTT Discovery. You'll see two entities:
 
-1. **Artika Light** - Controllable light with brightness (1-5 levels)
+1. **Artika Light** - Controllable light with brightness (configurable levels, default 5)
 2. **Artika Fan** - Controllable fan with three speed levels (Low, Medium, High)
 
 ### MQTT Topics
 
 **Command Topics:**
 - `artika/light/set` - Light ON/OFF
-- `artika/light/brightness/set` - Brightness (1-5)
+- `artika/light/brightness/set` - Brightness (1 to LED_BRIGHTNESS_LEVELS, default 5)
 - `artika/fan/set` - Fan ON/OFF
 - `artika/fan/speed/set` - Fan speed (0-3)
 
@@ -136,6 +157,8 @@ ArtikaController/
 ├── ArtikaController.ino    # Main sketch
 ├── RfCode.h                 # RF code definitions
 ├── WebServer.h              # Web interface implementation
+├── LogBuffer.h              # Circular log buffer for system monitor
+├── output.ino               # RF signal debug output helpers
 ├── config.h                 # WiFi and MQTT credentials (gitignored)
 ├── .gitignore               # Git ignore rules
 └── README.md                # This file
@@ -157,11 +180,11 @@ The following RF codes are pre-configured for the Artika Sunnyvale Fandelier. If
 
 ## Troubleshooting
 
-### Light State Out of Sync
+### State Out of Sync
 
-If the light state becomes out of sync with the physical device:
+If the light or fan state becomes out of sync with the physical device:
 1. Navigate to the web interface
-2. Under "State Sync" section, click the button that matches the actual physical state
+2. Under "State Synchronization" section, click the button that matches the actual physical state (light ON/OFF, fan OFF/LOW/MED/HIGH)
 3. This will update the controller's internal state without sending any RF commands
 
 ### MQTT Connection Issues
